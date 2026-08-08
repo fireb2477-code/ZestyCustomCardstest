@@ -1,6 +1,8 @@
 -- Priestess of White
 local s,id=GetID()
 
+local BLUE_EYES=89631139
+
 function s.initial_effect(c)
 
     ---------------------------------------------------
@@ -24,14 +26,13 @@ function s.initial_effect(c)
     ---------------------------------------------------
     -- EFFECT 2
     -- If this card is Normal or Special Summoned:
-    -- You can reveal 3 "Blue-Eyes White Dragon"
-    -- from your hand, GY, and/or Deck;
-    -- then reveal 1 Level 9 or lower LIGHT Dragon
-    -- Synchro Monster in your Extra Deck,
-    -- then Special Summon it.
-    --
-    -- This is treated as a Synchro Summon.
+    -- Reveal 3 "Blue-Eyes White Dragon" from your
+    -- hand, GY, and/or Deck; then reveal 1 Level 9
+    -- or lower LIGHT Dragon Synchro Monster in
+    -- your Extra Deck, then Special Summon it.
+    -- (This is treated as a Synchro Summon.)
     ---------------------------------------------------
+
     local e2=Effect.CreateEffect(c)
     e2:SetCategory(CATEGORY_SPECIAL_SUMMON)
     e2:SetType(EFFECT_TYPE_SINGLE+EFFECT_TYPE_TRIGGER_O)
@@ -51,10 +52,12 @@ function s.initial_effect(c)
     -- EFFECT 3
     -- If this card is in your GY:
     -- You can return 1 Synchro Monster you control
-    -- to the Extra Deck; Special Summon 1
-    -- "Blue-Eyes White Dragon" from your GY
-    -- or among your banished cards.
+    -- to the Extra Deck; Special Summon this card,
+    -- and if you do, Special Summon 1 "Blue-Eyes
+    -- White Dragon" from your GY or among your
+    -- banished cards.
     ---------------------------------------------------
+
     local e4=Effect.CreateEffect(c)
     e4:SetCategory(CATEGORY_TOEXTRA+CATEGORY_SPECIAL_SUMMON)
     e4:SetType(EFFECT_TYPE_IGNITION)
@@ -68,16 +71,25 @@ end
 
 
 -------------------------------------------------------
+-- BLUE-EYES FILTER
+-------------------------------------------------------
+
+function s.befilter(c)
+    return c:IsCode(BLUE_EYES)
+end
+
+
+-------------------------------------------------------
 -- EFFECT 1
 -------------------------------------------------------
 
 function s.spcon1(e,tp,eg,ep,ev,re,r,rp)
-
     local c=e:GetHandler()
 
     return eg:IsContains(c)
         and c:IsReason(REASON_EFFECT)
 end
+
 
 function s.sptg1(e,tp,eg,ep,ev,re,r,rp,chk)
 
@@ -102,6 +114,7 @@ function s.sptg1(e,tp,eg,ep,ev,re,r,rp,chk)
     )
 end
 
+
 function s.spop1(e,tp,eg,ep,ev,re,r,rp)
 
     local c=e:GetHandler()
@@ -123,18 +136,7 @@ function s.spop1(e,tp,eg,ep,ev,re,r,rp)
         false,
         POS_FACEUP
     )
-end
 
-
--------------------------------------------------------
--- BLUE-EYES FILTER
--------------------------------------------------------
-
--- Blue-Eyes White Dragon
-local BLUE_EYES=89631139
-
-function s.befilter(c)
-    return c:IsCode(BLUE_EYES)
 end
 
 
@@ -148,6 +150,7 @@ function s.syncfilter(c)
         and c:IsAttribute(ATTRIBUTE_LIGHT)
         and c:IsRace(RACE_DRAGON)
         and c:GetLevel()<=9
+
 end
 
 
@@ -159,16 +162,15 @@ function s.synctg(e,tp,eg,ep,ev,re,r,rp,chk)
 
     if chk==0 then
 
-        ---------------------------------------------------
-        -- Need a free Monster Zone
-        ---------------------------------------------------
-        if Duel.GetLocationCount(tp,LOCATION_MZONE)<=0 then
+        -- Free Monster Zone
+        if Duel.GetLocationCount(
+            tp,
+            LOCATION_MZONE
+        )<=0 then
             return false
         end
 
-        ---------------------------------------------------
-        -- Need at least 3 Blue-Eyes
-        ---------------------------------------------------
+        -- At least 3 Blue-Eyes
         local bg=Duel.GetMatchingGroup(
             s.befilter,
             tp,
@@ -181,9 +183,7 @@ function s.synctg(e,tp,eg,ep,ev,re,r,rp,chk)
             return false
         end
 
-        ---------------------------------------------------
-        -- Need a valid Synchro in Extra Deck
-        ---------------------------------------------------
+        -- Valid Synchro in Extra Deck
         return Duel.IsExistingMatchingCard(
             s.syncfilter,
             tp,
@@ -192,6 +192,7 @@ function s.synctg(e,tp,eg,ep,ev,re,r,rp,chk)
             1,
             nil
         )
+
     end
 
     Duel.SetOperationInfo(
@@ -202,6 +203,7 @@ function s.synctg(e,tp,eg,ep,ev,re,r,rp,chk)
         tp,
         LOCATION_EXTRA
     )
+
 end
 
 
@@ -211,19 +213,20 @@ end
 
 function s.syncop(e,tp,eg,ep,ev,re,r,rp)
 
-    local c=e:GetHandler()
-
     ---------------------------------------------------
     -- Check Monster Zone
     ---------------------------------------------------
 
-    if Duel.GetLocationCount(tp,LOCATION_MZONE)<=0 then
+    if Duel.GetLocationCount(
+        tp,
+        LOCATION_MZONE
+    )<=0 then
         return
     end
 
 
     ---------------------------------------------------
-    -- Find 3 Blue-Eyes
+    -- Get Blue-Eyes
     ---------------------------------------------------
 
     local bg=Duel.GetMatchingGroup(
@@ -240,7 +243,7 @@ function s.syncop(e,tp,eg,ep,ev,re,r,rp)
 
 
     ---------------------------------------------------
-    -- Select exactly 3 Blue-Eyes
+    -- Select 3 Blue-Eyes
     ---------------------------------------------------
 
     Duel.Hint(
@@ -262,7 +265,7 @@ function s.syncop(e,tp,eg,ep,ev,re,r,rp)
 
 
     ---------------------------------------------------
-    -- Reveal the 3 Blue-Eyes
+    -- Reveal Blue-Eyes
     ---------------------------------------------------
 
     Duel.ConfirmCards(
@@ -272,7 +275,7 @@ function s.syncop(e,tp,eg,ep,ev,re,r,rp)
 
 
     ---------------------------------------------------
-    -- Select LIGHT Dragon Synchro Level 9 or lower
+    -- Select Synchro
     ---------------------------------------------------
 
     Duel.Hint(
@@ -300,7 +303,7 @@ function s.syncop(e,tp,eg,ep,ev,re,r,rp)
 
 
     ---------------------------------------------------
-    -- Reveal the selected Synchro
+    -- Reveal Synchro
     ---------------------------------------------------
 
     Duel.ConfirmCards(
@@ -323,11 +326,6 @@ function s.syncop(e,tp,eg,ep,ev,re,r,rp)
         POS_FACEUP
     )>0 then
 
-        ---------------------------------------------------
-        -- Tell EDOPro that this Synchro was properly
-        -- summoned by this effect.
-        ---------------------------------------------------
-
         sc:CompleteProcedure()
 
     end
@@ -336,26 +334,14 @@ end
 
 
 -------------------------------------------------------
--- EFFECT 3
+-- EFFECT 3 FILTER
 -------------------------------------------------------
 
 function s.gyfilter(c)
 
     return c:IsType(TYPE_SYNCHRO)
         and c:IsAbleToExtra()
-end
 
-
-function s.betfilter(c)
-
-    return c:IsCode(BLUE_EYES)
-        and c:IsCanBeSpecialSummoned(
-            nil,
-            0,
-            tp,
-            false,
-            false
-        )
 end
 
 
@@ -365,10 +351,12 @@ end
 
 function s.gytg(e,tp,eg,ep,ev,re,r,rp,chk)
 
+    local c=e:GetHandler()
+
     if chk==0 then
 
         ---------------------------------------------------
-        -- Need a Synchro Monster you control
+        -- Must have a Synchro Monster
         ---------------------------------------------------
 
         if not Duel.IsExistingMatchingCard(
@@ -384,7 +372,34 @@ function s.gytg(e,tp,eg,ep,ev,re,r,rp,chk)
 
 
         ---------------------------------------------------
-        -- Need Blue-Eyes in GY or banished
+        -- Must have a free Monster Zone
+        ---------------------------------------------------
+
+        if Duel.GetLocationCount(
+            tp,
+            LOCATION_MZONE
+        )<=0 then
+            return false
+        end
+
+
+        ---------------------------------------------------
+        -- Priestess must be able to Special Summon
+        ---------------------------------------------------
+
+        if not c:IsCanBeSpecialSummoned(
+            e,
+            0,
+            tp,
+            false,
+            false
+        ) then
+            return false
+        end
+
+
+        ---------------------------------------------------
+        -- Must have Blue-Eyes in GY / banished
         ---------------------------------------------------
 
         return Duel.IsExistingMatchingCard(
@@ -395,7 +410,9 @@ function s.gytg(e,tp,eg,ep,ev,re,r,rp,chk)
             1,
             nil
         )
+
     end
+
 
     Duel.SetOperationInfo(
         0,
@@ -409,11 +426,21 @@ function s.gytg(e,tp,eg,ep,ev,re,r,rp,chk)
     Duel.SetOperationInfo(
         0,
         CATEGORY_SPECIAL_SUMMON,
+        c,
+        1,
+        tp,
+        LOCATION_GRAVE
+    )
+
+    Duel.SetOperationInfo(
+        0,
+        CATEGORY_SPECIAL_SUMMON,
         nil,
         1,
         tp,
         LOCATION_GRAVE+LOCATION_REMOVED
     )
+
 end
 
 
@@ -422,6 +449,18 @@ end
 -------------------------------------------------------
 
 function s.gyop(e,tp,eg,ep,ev,re,r,rp)
+
+    local c=e:GetHandler()
+
+
+    ---------------------------------------------------
+    -- Make sure Priestess is still in GY
+    ---------------------------------------------------
+
+    if not c:IsLocation(LOCATION_GRAVE) then
+        return
+    end
+
 
     ---------------------------------------------------
     -- Select Synchro Monster
@@ -452,7 +491,7 @@ function s.gyop(e,tp,eg,ep,ev,re,r,rp)
 
 
     ---------------------------------------------------
-    -- Send Synchro to Extra Deck
+    -- Return Synchro to Extra Deck
     ---------------------------------------------------
 
     if Duel.SendtoDeck(
@@ -466,7 +505,63 @@ function s.gyop(e,tp,eg,ep,ev,re,r,rp)
 
 
     ---------------------------------------------------
-    -- Select Blue-Eyes
+    -- Check Monster Zone again
+    ---------------------------------------------------
+
+    if Duel.GetLocationCount(
+        tp,
+        LOCATION_MZONE
+    )<=0 then
+        return
+    end
+
+
+    ---------------------------------------------------
+    -- SPECIAL SUMMON PRIESTESS ITSELF
+    ---------------------------------------------------
+
+    if not c:IsCanBeSpecialSummoned(
+        e,
+        0,
+        tp,
+        false,
+        false
+    ) then
+        return
+    end
+
+
+    local sum=Duel.SpecialSummon(
+        c,
+        0,
+        tp,
+        tp,
+        false,
+        false,
+        POS_FACEUP
+    )
+
+    if sum==0 then
+        return
+    end
+
+
+    ---------------------------------------------------
+    -- Priestess was successfully Special Summoned
+    --
+    -- Now Special Summon Blue-Eyes
+    ---------------------------------------------------
+
+    if Duel.GetLocationCount(
+        tp,
+        LOCATION_MZONE
+    )<=0 then
+        return
+    end
+
+
+    ---------------------------------------------------
+    -- Select Blue-Eyes from GY / banished
     ---------------------------------------------------
 
     Duel.Hint(
@@ -494,12 +589,8 @@ function s.gyop(e,tp,eg,ep,ev,re,r,rp)
 
 
     ---------------------------------------------------
-    -- Special Summon Blue-Eyes
+    -- Check Blue-Eyes
     ---------------------------------------------------
-
-    if Duel.GetLocationCount(tp,LOCATION_MZONE)<=0 then
-        return
-    end
 
     if not bc:IsCanBeSpecialSummoned(
         e,
@@ -510,6 +601,11 @@ function s.gyop(e,tp,eg,ep,ev,re,r,rp)
     ) then
         return
     end
+
+
+    ---------------------------------------------------
+    -- Special Summon Blue-Eyes
+    ---------------------------------------------------
 
     Duel.SpecialSummon(
         bc,
