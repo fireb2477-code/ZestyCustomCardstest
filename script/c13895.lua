@@ -1,11 +1,10 @@
---Tearlaments Mirella
+-- Tearlaments Mirella
 local s,id=GetID()
 
 function s.initial_effect(c)
 
     --------------------------------------------------
-    -- 1. You can discard this card;
-    -- add 1 "Tearlaments" card from your Deck to your hand.
+    -- 1. DISCARD -> ADD "Tearlaments"
     --------------------------------------------------
     local e1=Effect.CreateEffect(c)
     e1:SetCategory(CATEGORY_TOHAND)
@@ -17,10 +16,11 @@ function s.initial_effect(c)
     e1:SetOperation(s.thop)
     c:RegisterEffect(e1)
 
+
     --------------------------------------------------
-    -- 2. If your opponent Special Summons a monster:
-    -- You can Special Summon this card from your hand or GY,
-    -- and if you do, destroy 1 card your opponent controls.
+    -- 2. OPPONENT SPECIAL SUMMONS
+    -- Special Summon this card from hand/GY,
+    -- then destroy 1 card opponent controls.
     --------------------------------------------------
     local e2=Effect.CreateEffect(c)
     e2:SetCategory(CATEGORY_SPECIAL_SUMMON+CATEGORY_DESTROY)
@@ -33,14 +33,10 @@ function s.initial_effect(c)
     e2:SetOperation(s.spop)
     c:RegisterEffect(e2)
 
+
     --------------------------------------------------
-    -- 3. If this card is sent to the GY by card effect
-    -- (except during the Damage Step):
-    -- Fusion Summon 1 Fusion Monster from your Extra Deck
-    -- by placing the Fusion Materials mentioned on it
-    -- from your hand, field, and/or GY on the bottom
-    -- of the Deck in any order, including this card
-    -- from your GY.
+    -- 3. SENT TO GY BY CARD EFFECT
+    -- Fusion Summon a Fusion Monster
     --------------------------------------------------
     local e3=Effect.CreateEffect(c)
     e3:SetCategory(CATEGORY_SPECIAL_SUMMON+CATEGORY_FUSION_SUMMON)
@@ -139,7 +135,7 @@ end
 
 function s.spcon(e,tp,eg,ep,ev,re,r,rp)
 
-    -- Opponent must be the one who Special Summoned
+    -- Opponent must have Special Summoned
     return eg:IsExists(
         Card.IsControler,
         1,
@@ -149,9 +145,6 @@ function s.spcon(e,tp,eg,ep,ev,re,r,rp)
 
 end
 
-function s.spfilter(c)
-    return c:IsAbleToDestroy()
-end
 
 function s.sptg(e,tp,eg,ep,ev,re,r,rp,chk)
 
@@ -159,24 +152,32 @@ function s.sptg(e,tp,eg,ep,ev,re,r,rp,chk)
 
     if chk==0 then
 
-        return Duel.GetLocationCount(tp,LOCATION_MZONE)>0
-            and c:IsCanBeSpecialSummoned(
-                e,
-                0,
-                POS_FACEUP,
-                tp,
-                false,
-                false
-            )
-            and Duel.IsExistingMatchingCard(
-                s.spfilter,
-                1-tp,
-                LOCATION_ONFIELD,
-                0,
-                1,
-                nil
-            )
+        -- Có ô quái
+        if Duel.GetLocationCount(tp,LOCATION_MZONE)<=0 then
+            return false
+        end
 
+        -- Card phải có thể Special Summon
+        if not c:IsCanBeSpecialSummoned(
+            e,
+            0,
+            POS_FACEUP,
+            tp,
+            false,
+            false
+        ) then
+            return false
+        end
+
+        -- Đối thủ phải có card để destroy
+        return Duel.IsExistingMatchingCard(
+            Card.IsFaceup,
+            1-tp,
+            LOCATION_ONFIELD,
+            0,
+            1,
+            nil
+        )
     end
 
     Duel.SetOperationInfo(
@@ -199,9 +200,14 @@ function s.sptg(e,tp,eg,ep,ev,re,r,rp,chk)
 
 end
 
+
 function s.spop(e,tp,eg,ep,ev,re,r,rp)
 
     local c=e:GetHandler()
+
+    --------------------------------------------------
+    -- Special Summon Mirella
+    --------------------------------------------------
 
     if not c:IsRelateToEffect(e) then
         return
@@ -219,8 +225,12 @@ function s.spop(e,tp,eg,ep,ev,re,r,rp)
         return
     end
 
+    --------------------------------------------------
+    -- Select opponent's card
+    --------------------------------------------------
+
     local g=Duel.GetMatchingGroup(
-        s.spfilter,
+        Card.IsFaceup,
         1-tp,
         LOCATION_ONFIELD,
         0,
@@ -262,12 +272,12 @@ function s.fuscon(e,tp,eg,ep,ev,re,r,rp)
 
     local c=e:GetHandler()
 
-    -- Must have been sent by a card effect
+    -- Phải được gửi xuống GY bởi CARD EFFECT
     if not c:IsReason(REASON_EFFECT) then
         return false
     end
 
-    -- Not during Damage Step
+    -- Không kích hoạt trong Damage Step
     if Duel.IsDamageCalculation() then
         return false
     end
@@ -281,13 +291,13 @@ end
 -- Fusion Monster filter
 --------------------------------------------------
 
-function s.fusfilter(c)
+function s.fusfilter(c,e,tp)
 
     return c:IsType(TYPE_FUSION)
         and c:IsCanBeSpecialSummoned(
-            nil,
+            e,
             SUMMON_TYPE_FUSION,
-            0,
+            tp,
             false,
             false
         )
@@ -309,14 +319,16 @@ function s.fustg(e,tp,eg,ep,ev,re,r,rp,chk)
             LOCATION_EXTRA,
             0,
             1,
-            nil
+            nil,
+            e,
+            tp
         )
 
     end
 
     Duel.SetOperationInfo(
         0,
-        CATEGORY_SPECIAL_SUMMON,
+        CATEGORY_FUSION_SUMMON,
         nil,
         1,
         tp,
@@ -334,17 +346,27 @@ function s.fusop(e,tp,eg,ep,ev,re,r,rp)
 
     local c=e:GetHandler()
 
+    --------------------------------------------------
+    -- Find Fusion Monsters
+    --------------------------------------------------
+
     local g=Duel.GetMatchingGroup(
         s.fusfilter,
         tp,
         LOCATION_EXTRA,
         0,
-        nil
+        nil,
+        e,
+        tp
     )
 
     if #g==0 then
         return
     end
+
+    --------------------------------------------------
+    -- Select Fusion Monster
+    --------------------------------------------------
 
     Duel.Hint(
         HINT_SELECTMSG,
@@ -364,12 +386,12 @@ function s.fusop(e,tp,eg,ep,ev,re,r,rp)
     end
 
     --------------------------------------------------
-    -- Build possible Fusion Materials
+    -- Check Fusion Materials
     --------------------------------------------------
 
     local mg=Duel.GetFusionMaterial(tp)
 
-    -- Mirella herself is in the GY
+    -- Mirella trong GY cũng được dùng
     if c:IsLocation(LOCATION_GRAVE)
         and c:IsCanBeFusionMaterial(fc)
     then
@@ -377,30 +399,21 @@ function s.fusop(e,tp,eg,ep,ev,re,r,rp)
     end
 
     --------------------------------------------------
-    -- Use the standard EDOPro Fusion procedure
+    -- Check whether Fusion is possible
     --------------------------------------------------
 
-    local mat=nil
-
-    if fc.GetMaterial then
-        mat=fc:GetMaterial()
-    end
-
-    --------------------------------------------------
-    -- Check whether the selected Fusion Monster
-    -- can actually use the available materials.
-    --------------------------------------------------
-
-    if not fc:CheckFusionMaterial(
+    local chk=fc:CheckFusionMaterial(
         mg,
         nil,
         tp
-    ) then
+    )
+
+    if not chk then
         return
     end
 
     --------------------------------------------------
-    -- Let the engine perform the Fusion selection.
+    -- Select materials
     --------------------------------------------------
 
     local sg=fc:SelectFusionMaterial(
@@ -431,15 +444,16 @@ function s.fusop(e,tp,eg,ep,ev,re,r,rp)
     end
 
     --------------------------------------------------
-    -- Put all selected Fusion Materials
-    -- on the bottom of the Deck.
+    -- Send materials to bottom of Deck
     --------------------------------------------------
 
     Duel.SendtoDeck(
         sg,
         nil,
         SEQ_DECKBOTTOM,
-        REASON_EFFECT+REASON_MATERIAL+REASON_FUSION
+        REASON_EFFECT+
+        REASON_MATERIAL+
+        REASON_FUSION
     )
 
 end
