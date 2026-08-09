@@ -3,11 +3,10 @@ local s,id=GetID()
 
 function s.initial_effect(c)
 
-    ---------------------------------------------------
-    -- 1. DISCARD:
-    -- You can discard this card;
+    --------------------------------------------------
+    -- 1. You can discard this card;
     -- add 1 "Tearlaments" card from your Deck to your hand.
-    ---------------------------------------------------
+    --------------------------------------------------
     local e1=Effect.CreateEffect(c)
     e1:SetCategory(CATEGORY_TOHAND)
     e1:SetType(EFFECT_TYPE_IGNITION)
@@ -18,13 +17,11 @@ function s.initial_effect(c)
     e1:SetOperation(s.thop)
     c:RegisterEffect(e1)
 
-
-    ---------------------------------------------------
-    -- 2. QUICK EFFECT:
-    -- If your opponent Special Summons a monster:
+    --------------------------------------------------
+    -- 2. If your opponent Special Summons a monster:
     -- You can Special Summon this card from your hand or GY,
     -- and if you do, destroy 1 card your opponent controls.
-    ---------------------------------------------------
+    --------------------------------------------------
     local e2=Effect.CreateEffect(c)
     e2:SetCategory(CATEGORY_SPECIAL_SUMMON+CATEGORY_DESTROY)
     e2:SetType(EFFECT_TYPE_QUICK_O)
@@ -36,18 +33,17 @@ function s.initial_effect(c)
     e2:SetOperation(s.spop)
     c:RegisterEffect(e2)
 
-
-    ---------------------------------------------------
-    -- 3. SENT TO GY BY CARD EFFECT:
-    -- If this card is sent to the GY by card effect
+    --------------------------------------------------
+    -- 3. If this card is sent to the GY by card effect
     -- (except during the Damage Step):
-    -- Fusion Summon 1 Fusion Monster from your Extra Deck,
-    -- by placing Fusion Materials mentioned on it from
-    -- your hand, field, and/or GY on the bottom of the Deck
-    -- in any order, including this card from your GY.
-    ---------------------------------------------------
+    -- Fusion Summon 1 Fusion Monster from your Extra Deck
+    -- by placing the Fusion Materials mentioned on it
+    -- from your hand, field, and/or GY on the bottom
+    -- of the Deck in any order, including this card
+    -- from your GY.
+    --------------------------------------------------
     local e3=Effect.CreateEffect(c)
-    e3:SetCategory(CATEGORY_SPECIAL_SUMMON)
+    e3:SetCategory(CATEGORY_SPECIAL_SUMMON+CATEGORY_FUSION_SUMMON)
     e3:SetType(EFFECT_TYPE_SINGLE+EFFECT_TYPE_TRIGGER_O)
     e3:SetProperty(EFFECT_FLAG_DELAY)
     e3:SetCode(EVENT_TO_GRAVE)
@@ -60,15 +56,14 @@ function s.initial_effect(c)
 end
 
 
----------------------------------------------------
+--------------------------------------------------
 -- EFFECT 1
----------------------------------------------------
+--------------------------------------------------
 
 function s.thfilter(c)
-    return c:IsSetCard(0x19a)
+    return c:IsSetCard(0x182)
         and c:IsAbleToHand()
 end
-
 
 function s.thcost(e,tp,eg,ep,ev,re,r,rp,chk)
 
@@ -82,7 +77,6 @@ function s.thcost(e,tp,eg,ep,ev,re,r,rp,chk)
     )
 
 end
-
 
 function s.thtg(e,tp,eg,ep,ev,re,r,rp,chk)
 
@@ -107,7 +101,6 @@ function s.thtg(e,tp,eg,ep,ev,re,r,rp,chk)
     )
 
 end
-
 
 function s.thop(e,tp,eg,ep,ev,re,r,rp)
 
@@ -140,36 +133,34 @@ function s.thop(e,tp,eg,ep,ev,re,r,rp)
 end
 
 
----------------------------------------------------
+--------------------------------------------------
 -- EFFECT 2
--- Opponent Special Summons a monster
----------------------------------------------------
+--------------------------------------------------
 
 function s.spcon(e,tp,eg,ep,ev,re,r,rp)
 
-    -- Only when opponent Special Summoned
-    return ep~=tp
-        and eg:IsExists(
-            Card.IsControler,
-            1,
-            nil,
-            1-tp
-        )
+    -- Opponent must be the one who Special Summoned
+    return eg:IsExists(
+        Card.IsControler,
+        1,
+        nil,
+        1-tp
+    )
 
 end
-
 
 function s.spfilter(c)
-    return c:IsAbleToGrave()
+    return c:IsAbleToDestroy()
 end
 
-
 function s.sptg(e,tp,eg,ep,ev,re,r,rp,chk)
+
+    local c=e:GetHandler()
 
     if chk==0 then
 
         return Duel.GetLocationCount(tp,LOCATION_MZONE)>0
-            and e:GetHandler():IsCanBeSpecialSummoned(
+            and c:IsCanBeSpecialSummoned(
                 e,
                 0,
                 POS_FACEUP,
@@ -178,7 +169,7 @@ function s.sptg(e,tp,eg,ep,ev,re,r,rp,chk)
                 false
             )
             and Duel.IsExistingMatchingCard(
-                s.spdestroyfilter,
+                s.spfilter,
                 1-tp,
                 LOCATION_ONFIELD,
                 0,
@@ -191,7 +182,7 @@ function s.sptg(e,tp,eg,ep,ev,re,r,rp,chk)
     Duel.SetOperationInfo(
         0,
         CATEGORY_SPECIAL_SUMMON,
-        e:GetHandler(),
+        c,
         1,
         tp,
         LOCATION_HAND+LOCATION_GRAVE
@@ -208,97 +199,75 @@ function s.sptg(e,tp,eg,ep,ev,re,r,rp,chk)
 
 end
 
-
 function s.spop(e,tp,eg,ep,ev,re,r,rp)
 
     local c=e:GetHandler()
 
     if not c:IsRelateToEffect(e) then
-
-        if not Duel.SpecialSummon(
-            c,
-            0,
-            tp,
-            tp,
-            false,
-            false,
-            POS_FACEUP
-        ) then
-            return
-        end
-
-    else
-
-        if Duel.SpecialSummon(
-            c,
-            0,
-            tp,
-            tp,
-            false,
-            false,
-            POS_FACEUP
-        )==0 then
-            return
-        end
-
+        return
     end
 
-    ---------------------------------------------------
-    -- Destroy 1 card opponent controls
-    ---------------------------------------------------
+    if Duel.SpecialSummon(
+        c,
+        0,
+        tp,
+        tp,
+        false,
+        false,
+        POS_FACEUP
+    )==0 then
+        return
+    end
 
     local g=Duel.GetMatchingGroup(
-        s.spdestroyfilter,
+        s.spfilter,
         1-tp,
         LOCATION_ONFIELD,
         0,
         nil
     )
 
-    if #g>0 then
+    if #g==0 then
+        return
+    end
 
-        Duel.Hint(
-            HINT_SELECTMSG,
-            tp,
-            HINTMSG_DESTROY
-        )
+    Duel.Hint(
+        HINT_SELECTMSG,
+        tp,
+        HINTMSG_DESTROY
+    )
 
-        local dg=g:Select(
-            tp,
-            1,
-            1,
-            nil
-        )
+    local dg=g:Select(
+        tp,
+        1,
+        1,
+        nil
+    )
 
+    if #dg>0 then
         Duel.Destroy(
             dg,
             REASON_EFFECT
         )
-
     end
 
 end
 
 
-function s.spdestroyfilter(c)
-    return c:IsFaceup()
-        or c:IsFacedown()
-end
-
-
----------------------------------------------------
+--------------------------------------------------
 -- EFFECT 3
--- Sent to GY by card effect
----------------------------------------------------
+--------------------------------------------------
 
 function s.fuscon(e,tp,eg,ep,ev,re,r,rp)
 
-    -- Must be sent to GY by card effect
-    if not e:GetHandler():IsReason(REASON_EFFECT) then
+    local c=e:GetHandler()
+
+    -- Must have been sent by a card effect
+    if not c:IsReason(REASON_EFFECT) then
         return false
     end
 
-    -- Cannot activate during Damage Step
+    -- Not during Damage Step
     if Duel.IsDamageCalculation() then
         return false
     end
@@ -308,9 +277,9 @@ function s.fuscon(e,tp,eg,ep,ev,re,r,rp)
 end
 
 
----------------------------------------------------
+--------------------------------------------------
 -- Fusion Monster filter
----------------------------------------------------
+--------------------------------------------------
 
 function s.fusfilter(c)
 
@@ -326,9 +295,9 @@ function s.fusfilter(c)
 end
 
 
----------------------------------------------------
+--------------------------------------------------
 -- Fusion target
----------------------------------------------------
+--------------------------------------------------
 
 function s.fustg(e,tp,eg,ep,ev,re,r,rp,chk)
 
@@ -357,9 +326,9 @@ function s.fustg(e,tp,eg,ep,ev,re,r,rp,chk)
 end
 
 
----------------------------------------------------
+--------------------------------------------------
 -- Fusion operation
----------------------------------------------------
+--------------------------------------------------
 
 function s.fusop(e,tp,eg,ep,ev,re,r,rp)
 
@@ -376,10 +345,6 @@ function s.fusop(e,tp,eg,ep,ev,re,r,rp)
     if #g==0 then
         return
     end
-
-    ---------------------------------------------------
-    -- Select Fusion Monster
-    ---------------------------------------------------
 
     Duel.Hint(
         HINT_SELECTMSG,
@@ -398,73 +363,62 @@ function s.fusop(e,tp,eg,ep,ev,re,r,rp)
         return
     end
 
-    ---------------------------------------------------
-    -- Check Fusion Materials
-    ---------------------------------------------------
+    --------------------------------------------------
+    -- Build possible Fusion Materials
+    --------------------------------------------------
 
     local mg=Duel.GetFusionMaterial(tp)
 
-    ---------------------------------------------------
-    -- Include Mirella itself from GY
-    ---------------------------------------------------
-
+    -- Mirella herself is in the GY
     if c:IsLocation(LOCATION_GRAVE)
         and c:IsCanBeFusionMaterial(fc)
     then
         mg:AddCard(c)
     end
 
-    ---------------------------------------------------
-    -- Ask engine for valid Fusion Material groups
-    ---------------------------------------------------
+    --------------------------------------------------
+    -- Use the standard EDOPro Fusion procedure
+    --------------------------------------------------
 
     local mat=nil
 
-    if fc.CheckFusionMaterial then
-
-        mat=fc:CheckFusionMaterial(
-            mg,
-            nil,
-            tp
-        )
-
+    if fc.GetMaterial then
+        mat=fc:GetMaterial()
     end
 
-    ---------------------------------------------------
-    -- If engine does not return a material group,
-    -- stop safely instead of causing a script error.
-    ---------------------------------------------------
+    --------------------------------------------------
+    -- Check whether the selected Fusion Monster
+    -- can actually use the available materials.
+    --------------------------------------------------
 
-    if not mat or #mat==0 then
+    if not fc:CheckFusionMaterial(
+        mg,
+        nil,
+        tp
+    ) then
         return
     end
 
-    ---------------------------------------------------
-    -- Select materials
-    ---------------------------------------------------
+    --------------------------------------------------
+    -- Let the engine perform the Fusion selection.
+    --------------------------------------------------
 
-    Duel.Hint(
-        HINT_SELECTMSG,
+    local sg=fc:SelectFusionMaterial(
         tp,
-        HINTMSG_FMATERIAL
-    )
-
-    local sg=mat:Select(
-        tp,
-        1,
-        1,
-        nil
+        mg,
+        nil,
+        tp
     )
 
     if not sg or #sg==0 then
         return
     end
 
-    ---------------------------------------------------
+    --------------------------------------------------
     -- Fusion Summon
-    ---------------------------------------------------
+    --------------------------------------------------
 
-    if not Duel.SpecialSummon(
+    if Duel.SpecialSummon(
         fc,
         SUMMON_TYPE_FUSION,
         tp,
@@ -472,18 +426,19 @@ function s.fusop(e,tp,eg,ep,ev,re,r,rp)
         false,
         false,
         POS_FACEUP
-    ) then
+    )==0 then
         return
     end
 
-    ---------------------------------------------------
-    -- Send materials to bottom of Deck
-    ---------------------------------------------------
+    --------------------------------------------------
+    -- Put all selected Fusion Materials
+    -- on the bottom of the Deck.
+    --------------------------------------------------
 
     Duel.SendtoDeck(
         sg,
         nil,
-        SEQ_BOTTOM,
+        SEQ_DECKBOTTOM,
         REASON_EFFECT+REASON_MATERIAL+REASON_FUSION
     )
 
