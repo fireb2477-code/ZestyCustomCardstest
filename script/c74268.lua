@@ -2,21 +2,21 @@
 local s,id=GetID()
 
 function s.initial_effect(c)
-    c:EnableReviveLimit()
-
     ---------------------------------------------------
     -- Synchro Material
     -- 1+ Dragon non-Tuner + 1 Spellcaster Tuner
     ---------------------------------------------------
+    c:EnableReviveLimit()
+
     Synchro.AddProcedure(c,
         s.tfilter,1,1,
         s.ntfilter,1,99
     )
 
     ---------------------------------------------------
-    -- 1. When Synchro Summoned:
-    -- Change all opponent monsters to Defense Position
-    -- and make their ATK/DEF 0
+    -- 1. When Synchro Summoned
+    -- Change all opponent's monsters to Defense Position
+    -- Then make their ATK/DEF 0
     ---------------------------------------------------
     local e1=Effect.CreateEffect(c)
     e1:SetCategory(CATEGORY_POSITION+CATEGORY_ATKCHANGE+CATEGORY_DEFCHANGE)
@@ -39,8 +39,8 @@ function s.initial_effect(c)
     c:RegisterEffect(e2)
 
     ---------------------------------------------------
-    -- 3. This Synchro Summoned card cannot leave
-    -- the field by opponent's card effects
+    -- 3. Cannot leave the field by opponent's
+    -- card effects
     ---------------------------------------------------
 
     -- Cannot be sent to GY
@@ -53,12 +53,12 @@ function s.initial_effect(c)
     e3:SetValue(1)
     c:RegisterEffect(e3)
 
-    -- Cannot return to hand
+    -- Cannot be returned to hand
     local e4=e3:Clone()
     e4:SetCode(EFFECT_CANNOT_TO_HAND)
     c:RegisterEffect(e4)
 
-    -- Cannot return to Deck
+    -- Cannot be returned to Deck
     local e5=e3:Clone()
     e5:SetCode(EFFECT_CANNOT_TO_DECK)
     c:RegisterEffect(e5)
@@ -87,22 +87,20 @@ function s.initial_effect(c)
     c:RegisterEffect(e8)
 
     ---------------------------------------------------
-    -- 4. Piercing + double battle damage
+    -- 4. Double piercing battle damage
+    --
+    -- IMPORTANT:
+    -- DOUBLE_DAMAGE is the Value of EFFECT_PIERCE.
+    -- This gives piercing damage AND doubles it.
     ---------------------------------------------------
-
-    -- Piercing battle damage
     local e9=Effect.CreateEffect(c)
     e9:SetType(EFFECT_TYPE_SINGLE)
     e9:SetCode(EFFECT_PIERCE)
+    e9:SetProperty(EFFECT_FLAG_SINGLE_RANGE)
+    e9:SetRange(LOCATION_MZONE)
+    e9:SetCondition(s.piercecon)
+    e9:SetValue(DOUBLE_DAMAGE)
     c:RegisterEffect(e9)
-
-    -- Double the piercing battle damage
-    local e10=Effect.CreateEffect(c)
-    e10:SetType(EFFECT_TYPE_SINGLE)
-    e10:SetCode(EFFECT_CHANGE_BATTLE_DAMAGE)
-    e10:SetCondition(s.piercecon)
-    e10:SetValue(s.pierceval)
-    c:RegisterEffect(e10)
 end
 
 
@@ -130,8 +128,6 @@ function s.poscon(e,tp,eg,ep,ev,re,r,rp)
 end
 
 function s.posop(e,tp,eg,ep,ev,re,r,rp)
-    local c=e:GetHandler()
-
     local g=Duel.GetMatchingGroup(
         Card.IsFaceup,
         tp,
@@ -142,7 +138,9 @@ function s.posop(e,tp,eg,ep,ev,re,r,rp)
 
     for tc in aux.Next(g) do
 
+        ---------------------------------------------------
         -- Change to Defense Position
+        ---------------------------------------------------
         if tc:IsAttackPos() then
             Duel.ChangePosition(
                 tc,
@@ -150,15 +148,19 @@ function s.posop(e,tp,eg,ep,ev,re,r,rp)
             )
         end
 
+        ---------------------------------------------------
         -- Set ATK to 0
-        local e1=Effect.CreateEffect(c)
+        ---------------------------------------------------
+        local e1=Effect.CreateEffect(e:GetHandler())
         e1:SetType(EFFECT_TYPE_SINGLE)
         e1:SetCode(EFFECT_SET_ATTACK)
         e1:SetValue(0)
-        e1:SetReset(RESET_EVENT|RESETS_STANDARD)
+        e1:SetReset(RESET_EVENT+RESETS_STANDARD)
         tc:RegisterEffect(e1)
 
+        ---------------------------------------------------
         -- Set DEF to 0
+        ---------------------------------------------------
         local e2=e1:Clone()
         e2:SetCode(EFFECT_SET_DEFENSE)
         tc:RegisterEffect(e2)
@@ -168,45 +170,68 @@ end
 
 ---------------------------------------------------
 -- Effect 2
--- Opponent's monster effects cannot activate
--- while their ATK or DEF is 0
+--
+-- Opponent's face-up monsters in the Monster Zone
+-- with 0 ATK OR 0 DEF cannot activate their effects.
+--
+-- EFFECT_CANNOT_ACTIVATE uses SetValue:
+-- e  = this effect
+-- re = effect being activated
+-- tp = player attempting to activate it
 ---------------------------------------------------
 
 function s.actval(e,re,tp)
-    -- Must be a monster effect
-    if not re:IsMonsterEffect() then
+
+    -- Safety check
+    if not re then
         return false
     end
 
-    local tc=re:GetHandler()
+    local c=re:GetHandler()
 
-    if not tc then
+    -- No handler
+    if not c then
         return false
     end
 
-    -- Must be an opponent's monster
-    if tc:IsControler(e:GetHandlerPlayer()) then
+    ---------------------------------------------------
+    -- Must be controlled by the opponent
+    ---------------------------------------------------
+    if tp~=1-e:GetHandlerPlayer() then
         return false
     end
 
-    -- Must currently be face-up on the field
-    if not tc:IsFaceup() or not tc:IsLocation(LOCATION_MZONE) then
+    ---------------------------------------------------
+    -- Must currently be a face-up monster
+    -- in the Monster Zone
+    ---------------------------------------------------
+    if not c:IsFaceup() then
         return false
     end
 
+    if not c:IsLocation(LOCATION_MZONE) then
+        return false
+    end
+
+    ---------------------------------------------------
     -- 0 ATK OR 0 DEF
-    return tc:GetAttack()==0
-        or tc:GetDefense()==0
+    ---------------------------------------------------
+    return c:GetAttack()==0
+        or c:GetDefense()==0
 end
 
 
 ---------------------------------------------------
--- Cannot leave field
+-- Effect 3
+-- Cannot leave the field by opponent's card effects
 ---------------------------------------------------
 
 function s.leavecon(e)
     local c=e:GetHandler()
 
+    ---------------------------------------------------
+    -- Only while properly Synchro Summoned
+    ---------------------------------------------------
     return c:IsSummonType(SUMMON_TYPE_SYNCHRO)
 end
 
@@ -222,28 +247,18 @@ end
 
 
 ---------------------------------------------------
--- Piercing + double damage
+-- Effect 4
+-- Double piercing
 ---------------------------------------------------
 
 function s.piercecon(e)
     local c=e:GetHandler()
 
-    -- Must be the attacking monster
-    if Duel.GetAttacker()~=c then
-        return false
-    end
-
+    ---------------------------------------------------
+    -- Only when battling a Defense Position monster
+    ---------------------------------------------------
     local bc=c:GetBattleTarget()
 
-    if not bc then
-        return false
-    end
-
-    -- Target must be in Defense Position
-    return bc:IsDefensePos()
-end
-
-
-function s.pierceval(e,dam)
-    return dam*2
+    return bc
+        and bc:IsDefensePos()
 end
