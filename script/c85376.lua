@@ -32,7 +32,7 @@ function s.initial_effect(c)
 	---------------------------------------------------
 	-- End Phase
 	-- If Special Summoned by its own procedure:
-	-- Banish 1 HERO from your GY
+	-- Banish 1 "HERO" monster from your GY
 	-- OR send this card to the GY
 	---------------------------------------------------
 	local e1=Effect.CreateEffect(c)
@@ -48,7 +48,8 @@ function s.initial_effect(c)
 
 	---------------------------------------------------
 	-- Quick Effect
-	-- Negate opponent's activation, then destroy it
+	-- Negate an opponent's card/effect activation
+	-- and destroy that card
 	---------------------------------------------------
 	local e2=Effect.CreateEffect(c)
 	e2:SetCategory(CATEGORY_NEGATE+CATEGORY_DESTROY)
@@ -63,7 +64,7 @@ function s.initial_effect(c)
 
 	---------------------------------------------------
 	-- Banish any number of "Masked HERO" monsters
-	-- from your GY, then gain 300 ATK for each
+	-- from your GY and gain 300 ATK for each
 	---------------------------------------------------
 	local e3=Effect.CreateEffect(c)
 	e3:SetCategory(CATEGORY_REMOVE+CATEGORY_ATKCHANGE)
@@ -78,7 +79,6 @@ end
 
 ---------------------------------------------------
 -- Fusion Material
--- "Masked HERO"
 ---------------------------------------------------
 
 function s.matfilter(c,fc,sumtype,tp)
@@ -91,9 +91,9 @@ end
 ---------------------------------------------------
 -- Alternative Summon Material
 --
--- "Masked HERO" monsters
+-- "Masked HERO"
 -- Must be able to be banished
--- The Tri-Breaker itself is excluded
+-- Exclude Tri-Breaker itself
 ---------------------------------------------------
 
 function s.spfilter(c,sc)
@@ -105,25 +105,7 @@ end
 
 
 ---------------------------------------------------
--- Alternative Summon Condition
----------------------------------------------------
-
-function s.spcon(e,c)
-	if c==nil then
-		return true
-	end
-
-	return Duel.GetLocationCountFromEx(
-		e:GetHandlerPlayer(),
-		e:GetHandlerPlayer(),
-		c
-	)>0
-end
-
-
----------------------------------------------------
--- Check if there are 3 valid materials
--- with 3 different Attributes
+-- Check whether 3 valid materials exist
 ---------------------------------------------------
 
 function s.hasmaterials(tp,c)
@@ -140,18 +122,10 @@ function s.hasmaterials(tp,c)
 		return false
 	end
 
-	---------------------------------------------------
-	-- Find first material
-	---------------------------------------------------
-
 	for tc1 in aux.Next(g) do
 
 		local g2=g:Clone()
 		g2:RemoveCard(tc1)
-
-		---------------------------------------------------
-		-- Find second material
-		---------------------------------------------------
 
 		for tc2 in aux.Next(g2) do
 
@@ -160,19 +134,16 @@ function s.hasmaterials(tp,c)
 				local g3=g2:Clone()
 				g3:RemoveCard(tc2)
 
-				---------------------------------------------------
-				-- Find third material
-				---------------------------------------------------
-
 				for tc3 in aux.Next(g3) do
 
 					if tc3:GetAttribute()~=tc1:GetAttribute()
 					and tc3:GetAttribute()~=tc2:GetAttribute() then
-
 						return true
 					end
+
 				end
 			end
+
 		end
 	end
 
@@ -181,20 +152,51 @@ end
 
 
 ---------------------------------------------------
--- Alternative Summon Target
+-- Alternative Summon Condition
 --
 -- IMPORTANT:
--- Do NOT select materials here.
--- Only tell the engine whether the procedure
--- is currently possible.
+-- The engine checks this BEFORE showing the
+-- Special Summon procedure.
+--
+-- Therefore material availability is checked HERE,
+-- not only in s.sptg().
+---------------------------------------------------
+
+function s.spcon(e,c)
+
+	if c==nil then
+		return true
+	end
+
+	local tp=e:GetHandlerPlayer()
+
+	---------------------------------------------------
+	-- Must have an available Extra Monster Zone /
+	-- Main Monster Zone usable by Extra Deck Summon
+	---------------------------------------------------
+
+	if Duel.GetLocationCountFromEx(tp,tp,c)<=0 then
+		return false
+	end
+
+	---------------------------------------------------
+	-- Must actually have a valid set of 3 materials
+	---------------------------------------------------
+
+	return s.hasmaterials(tp,c)
+end
+
+
+---------------------------------------------------
+-- Alternative Summon Target
+--
+-- No material selection here.
 ---------------------------------------------------
 
 function s.sptg(e,tp,eg,ep,ev,re,r,rp,chk)
 
-	local c=e:GetHandler()
-
 	if chk==0 then
-		return s.hasmaterials(tp,c)
+		return true
 	end
 
 	return true
@@ -203,8 +205,6 @@ end
 
 ---------------------------------------------------
 -- Alternative Summon Operation
---
--- Select materials here
 ---------------------------------------------------
 
 function s.spop(e,tp,eg,ep,ev,re,r,rp)
@@ -229,7 +229,7 @@ function s.spop(e,tp,eg,ep,ev,re,r,rp)
 
 
 	---------------------------------------------------
-	-- Select first material
+	-- Select Material 1
 	---------------------------------------------------
 
 	Duel.Hint(
@@ -248,7 +248,7 @@ function s.spop(e,tp,eg,ep,ev,re,r,rp)
 
 
 	---------------------------------------------------
-	-- Select second material
+	-- Select Material 2
 	-- Different Attribute
 	---------------------------------------------------
 
@@ -280,7 +280,7 @@ function s.spop(e,tp,eg,ep,ev,re,r,rp)
 
 
 	---------------------------------------------------
-	-- Select third material
+	-- Select Material 3
 	-- Different Attribute from both
 	---------------------------------------------------
 
@@ -323,7 +323,7 @@ function s.spop(e,tp,eg,ep,ev,re,r,rp)
 
 
 	---------------------------------------------------
-	-- Final safety check
+	-- Final safety checks
 	---------------------------------------------------
 
 	if #sg~=3 then
@@ -342,7 +342,7 @@ function s.spop(e,tp,eg,ep,ev,re,r,rp)
 
 
 	---------------------------------------------------
-	-- Make sure all 3 can still be banished
+	-- Make sure all materials can still be banished
 	---------------------------------------------------
 
 	for tc in aux.Next(sg) do
@@ -371,8 +371,7 @@ function s.spop(e,tp,eg,ep,ev,re,r,rp)
 
 
 	---------------------------------------------------
-	-- Mark that Tri-Breaker was Special Summoned
-	-- using its alternative procedure
+	-- Mark this card as summoned by its own procedure
 	---------------------------------------------------
 
 	c:RegisterFlagEffect(
@@ -403,7 +402,6 @@ end
 -- HERO filter
 --
 -- HERO = 0x8
--- NOT Masked HERO
 ---------------------------------------------------
 
 function s.herofilter(c)
@@ -439,10 +437,6 @@ function s.eptg(e,tp,eg,ep,ev,re,r,rp,chk)
 	end
 
 
-	---------------------------------------------------
-	-- Banish HERO
-	---------------------------------------------------
-
 	if canbanish then
 
 		Duel.SetOperationInfo(
@@ -456,10 +450,6 @@ function s.eptg(e,tp,eg,ep,ev,re,r,rp,chk)
 
 	end
 
-
-	---------------------------------------------------
-	-- Send this card to GY is possible
-	---------------------------------------------------
 
 	if cangy then
 
@@ -488,11 +478,6 @@ function s.epop(e,tp,eg,ep,ev,re,r,rp)
 		return
 	end
 
-
-	---------------------------------------------------
-	-- Check options
-	---------------------------------------------------
-
 	local canbanish=Duel.IsExistingMatchingCard(
 		s.herofilter,
 		tp,
@@ -518,7 +503,7 @@ function s.epop(e,tp,eg,ep,ev,re,r,rp)
 		)
 
 		---------------------------------------------------
-		-- Banish HERO
+		-- Banish 1 HERO
 		---------------------------------------------------
 
 		if op==1 then
@@ -550,18 +535,13 @@ function s.epop(e,tp,eg,ep,ev,re,r,rp)
 
 			end
 
-			---------------------------------------------------
-			-- STOP.
-			-- Tri-Breaker stays on field.
-			---------------------------------------------------
-
 			return
 
-		else
+		---------------------------------------------------
+		-- Send Tri-Breaker to GY
+		---------------------------------------------------
 
-			---------------------------------------------------
-			-- Send Tri-Breaker to GY
-			---------------------------------------------------
+		else
 
 			Duel.SendtoGrave(
 				c,
@@ -574,7 +554,7 @@ function s.epop(e,tp,eg,ep,ev,re,r,rp)
 
 
 	---------------------------------------------------
-	-- Only HERO is available
+	-- Only HERO available
 	---------------------------------------------------
 
 	if canbanish then
@@ -626,7 +606,7 @@ end
 
 
 ---------------------------------------------------
--- Negate opponent's activation
+-- Negate opponent's card/effect
 ---------------------------------------------------
 
 function s.negcon(e,tp,eg,ep,ev,re,r,rp)
@@ -692,7 +672,7 @@ end
 
 
 ---------------------------------------------------
--- Banish Masked HERO
+-- Masked HERO ATK Effect
 ---------------------------------------------------
 
 function s.atkfilter(c)
@@ -738,10 +718,6 @@ function s.atkop(e,tp,eg,ep,ev,re,r,rp)
 	end
 
 
-	---------------------------------------------------
-	-- Select 1 or more
-	---------------------------------------------------
-
 	Duel.Hint(
 		HINT_SELECTMSG,
 		tp,
@@ -751,14 +727,9 @@ function s.atkop(e,tp,eg,ep,ev,re,r,rp)
 	local sg=g:Select(
 		tp,
 		1,
-		# g,
+		#g,
 		nil
 	)
-
-
-	---------------------------------------------------
-	-- Banish
-	---------------------------------------------------
 
 	local ct=Duel.Remove(
 		sg,
@@ -766,10 +737,6 @@ function s.atkop(e,tp,eg,ep,ev,re,r,rp)
 		REASON_EFFECT
 	)
 
-
-	---------------------------------------------------
-	-- Gain 300 ATK per card
-	---------------------------------------------------
 
 	if ct>0 then
 
