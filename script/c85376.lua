@@ -2,6 +2,13 @@
 local s,id=GetID()
 
 function s.initial_effect(c)
+
+	---------------------------------------------------
+	-- Constants
+	---------------------------------------------------
+	local HERO=0x8
+	local MASKED_HERO=0xA008
+
 	---------------------------------------------------
 	-- Fusion Summon
 	-- 3 "Masked HERO" monsters with different Attributes
@@ -73,20 +80,12 @@ end
 
 
 ---------------------------------------------------
--- Archetype codes
----------------------------------------------------
-
-local HERO=0x8
-local MASKED_HERO=0xA008
-
-
----------------------------------------------------
 -- Fusion Material
 -- 3 Masked HERO monsters
 ---------------------------------------------------
 
 function s.matfilter(c,fc,sumtype,tp)
-	return c:IsSetCard(MASKED_HERO)
+	return c:IsSetCard(0xA008)
 		and c:IsCanBeFusionMaterial(fc)
 end
 
@@ -97,16 +96,18 @@ end
 
 function s.spfilter(c,sc)
 	return c~=sc
-		and c:IsSetCard(MASKED_HERO)
+		and c:IsSetCard(0xA008)
 		and c:IsAbleToRemove()
 end
 
 
 ---------------------------------------------------
 -- Check whether 3 valid materials exist
+-- They must have different Attributes.
 ---------------------------------------------------
 
 function s.checkmaterials(tp,sc)
+
 	local g=Duel.GetMatchingGroup(
 		s.spfilter,
 		tp,
@@ -118,10 +119,6 @@ function s.checkmaterials(tp,sc)
 	if #g<3 then
 		return false
 	end
-
-	---------------------------------------------------
-	-- Check 3 different Attributes
-	---------------------------------------------------
 
 	for tc1 in aux.Next(g) do
 
@@ -154,14 +151,10 @@ end
 
 ---------------------------------------------------
 -- Alternative Special Summon condition
---
--- IMPORTANT:
--- Check materials HERE, not only in sptg().
--- This prevents EDOPro from displaying the card
--- as summonable when there are not enough materials.
 ---------------------------------------------------
 
 function s.spcon(e,c)
+
 	if c==nil then
 		return true
 	end
@@ -173,7 +166,7 @@ function s.spcon(e,c)
 	local tp=e:GetHandlerPlayer()
 
 	---------------------------------------------------
-	-- Must have a free Extra Monster Zone / valid zone
+	-- Check Extra Monster Zone / available zone
 	---------------------------------------------------
 
 	if Duel.GetLocationCountFromEx(
@@ -185,7 +178,7 @@ function s.spcon(e,c)
 	end
 
 	---------------------------------------------------
-	-- MUST actually have 3 materials
+	-- Check actual materials
 	---------------------------------------------------
 
 	return s.checkmaterials(tp,c)
@@ -197,8 +190,12 @@ end
 ---------------------------------------------------
 
 function s.sptg(e,tp,eg,ep,ev,re,r,rp,chk)
+
 	if chk==0 then
-		return s.checkmaterials(tp,e:GetHandler())
+		return s.checkmaterials(
+			tp,
+			e:GetHandler()
+		)
 	end
 
 	return true
@@ -210,11 +207,8 @@ end
 ---------------------------------------------------
 
 function s.spop(e,tp,eg,ep,ev,re,r,rp)
-	local c=e:GetHandler()
 
-	---------------------------------------------------
-	-- Get all possible materials
-	---------------------------------------------------
+	local c=e:GetHandler()
 
 	local g=Duel.GetMatchingGroup(
 		s.spfilter,
@@ -228,8 +222,6 @@ function s.spop(e,tp,eg,ep,ev,re,r,rp)
 		return
 	end
 
-	local sg=Group.CreateGroup()
-
 
 	---------------------------------------------------
 	-- Select first material
@@ -241,13 +233,17 @@ function s.spop(e,tp,eg,ep,ev,re,r,rp)
 		HINTMSG_REMOVE
 	)
 
-	local tc1=g:Select(tp,1,1,nil):GetFirst()
+	local tc1=g:Select(
+		tp,
+		1,
+		1,
+		nil
+	):GetFirst()
 
 	if not tc1 then
 		return
 	end
 
-	sg:AddCard(tc1)
 	g:RemoveCard(tc1)
 
 
@@ -273,13 +269,17 @@ function s.spop(e,tp,eg,ep,ev,re,r,rp)
 		HINTMSG_REMOVE
 	)
 
-	local tc2=g2:Select(tp,1,1,nil):GetFirst()
+	local tc2=g2:Select(
+		tp,
+		1,
+		1,
+		nil
+	):GetFirst()
 
 	if not tc2 then
 		return
 	end
 
-	sg:AddCard(tc2)
 	g:RemoveCard(tc2)
 
 
@@ -289,6 +289,7 @@ function s.spop(e,tp,eg,ep,ev,re,r,rp)
 
 	local g3=g:Filter(
 		function(mc,attr1,attr2)
+
 			local attr=mc:GetAttribute()
 
 			return attr~=attr1
@@ -309,12 +310,26 @@ function s.spop(e,tp,eg,ep,ev,re,r,rp)
 		HINTMSG_REMOVE
 	)
 
-	local tc3=g3:Select(tp,1,1,nil):GetFirst()
+	local tc3=g3:Select(
+		tp,
+		1,
+		1,
+		nil
+	):GetFirst()
 
 	if not tc3 then
 		return
 	end
 
+
+	---------------------------------------------------
+	-- Create material group
+	---------------------------------------------------
+
+	local sg=Group.CreateGroup()
+
+	sg:AddCard(tc1)
+	sg:AddCard(tc2)
 	sg:AddCard(tc3)
 
 
@@ -330,15 +345,18 @@ function s.spop(e,tp,eg,ep,ev,re,r,rp)
 		return
 	end
 
-
 	---------------------------------------------------
-	-- Mark that this card was Special Summoned
-	-- by its own procedure
+	-- IMPORTANT:
+	-- Mark the card BEFORE the procedure finishes.
+	--
+	-- RESET_STANDARD_DISABLE allows the flag to survive
+	-- the Special Summon itself, while still removing it
+	-- when the card leaves the field.
 	---------------------------------------------------
 
 	c:RegisterFlagEffect(
 		id,
-		RESET_EVENT+RESETS_STANDARD,
+		RESET_EVENT+RESETS_STANDARD_DISABLE,
 		0,
 		1
 	)
@@ -350,19 +368,23 @@ end
 ---------------------------------------------------
 
 function s.epcon(e,tp,eg,ep,ev,re,r,rp)
-	return e:GetHandler():GetFlagEffect(id)>0
+
+	local c=e:GetHandler()
+
+	return c:IsFaceup()
+		and c:GetFlagEffect(id)>0
 end
 
 
 ---------------------------------------------------
 -- HERO filter
 --
--- IMPORTANT:
--- This is HERO in general, not Masked HERO.
+-- This is HERO in general, NOT Masked HERO only.
 ---------------------------------------------------
 
 function s.herofilter(c)
-	return c:IsSetCard(HERO)
+
+	return c:IsSetCard(0x8)
 		and c:IsAbleToRemove()
 end
 
@@ -373,6 +395,8 @@ end
 
 function s.eptg(e,tp,eg,ep,ev,re,r,rp,chk)
 
+	local c=e:GetHandler()
+
 	if chk==0 then
 		return Duel.IsExistingMatchingCard(
 			s.herofilter,
@@ -382,22 +406,42 @@ function s.eptg(e,tp,eg,ep,ev,re,r,rp,chk)
 			1,
 			nil
 		)
-		or e:GetHandler():IsAbleToGrave()
+		or c:IsAbleToGrave()
 	end
 
-	Duel.SetOperationInfo(
-		0,
-		CATEGORY_REMOVE,
-		nil,
-		1,
+	---------------------------------------------------
+	-- If HERO exists, both options are possible.
+	---------------------------------------------------
+
+	if Duel.IsExistingMatchingCard(
+		s.herofilter,
 		tp,
-		LOCATION_GRAVE
+		LOCATION_GRAVE,
+		0,
+		1,
+		nil
 	)
+	then
+
+		Duel.SetOperationInfo(
+			0,
+			CATEGORY_REMOVE,
+			nil,
+			1,
+			tp,
+			LOCATION_GRAVE
+		)
+
+	end
+
+	---------------------------------------------------
+	-- Sending Tri-breaker to GY is also possible.
+	---------------------------------------------------
 
 	Duel.SetOperationInfo(
 		0,
 		CATEGORY_TOGRAVE,
-		e:GetHandler(),
+		c,
 		1,
 		tp,
 		LOCATION_MZONE
@@ -410,6 +454,7 @@ end
 ---------------------------------------------------
 
 function s.epop(e,tp,eg,ep,ev,re,r,rp)
+
 	local c=e:GetHandler()
 
 	local g=Duel.GetMatchingGroup(
@@ -421,40 +466,81 @@ function s.epop(e,tp,eg,ep,ev,re,r,rp)
 	)
 
 	---------------------------------------------------
-	-- If there is a HERO in GY:
-	-- Banish 1 HERO
+	-- If HERO exists:
+	-- Choose:
+	-- 1. Banish 1 HERO
+	-- 2. Send Tri-breaker to GY
 	---------------------------------------------------
 
 	if #g>0 then
 
-		Duel.Hint(
-			HINT_SELECTMSG,
+		local opt=Duel.SelectOption(
 			tp,
-			HINTMSG_REMOVE
+			" Banish 1 HERO from your GY",
+			" Send this card to the GY"
 		)
 
-		local tc=g:Select(tp,1,1,nil):GetFirst()
+		---------------------------------------------------
+		-- Option 1: Banish HERO
+		---------------------------------------------------
 
-		if tc then
-			Duel.Remove(
-				tc,
-				POS_FACEUP,
-				REASON_EFFECT
+		if opt==0 then
+
+			Duel.Hint(
+				HINT_SELECTMSG,
+				tp,
+				HINTMSG_REMOVE
 			)
+
+			local tc=g:Select(
+				tp,
+				1,
+				1,
+				nil
+			):GetFirst()
+
+			if tc then
+
+				Duel.Remove(
+					tc,
+					POS_FACEUP,
+					REASON_EFFECT
+				)
+
+			end
 
 			return
 		end
+
+		---------------------------------------------------
+		-- Option 2: Send Tri-breaker to GY
+		---------------------------------------------------
+
+		if c:IsRelateToEffect(e) then
+
+			Duel.SendtoGrave(
+				c,
+				REASON_EFFECT
+			)
+
+		end
+
+		return
 	end
 
+
 	---------------------------------------------------
-	-- Otherwise send this card to GY
+	-- No HERO in GY:
+	-- Automatically send Tri-breaker to GY.
 	---------------------------------------------------
 
 	if c:IsRelateToEffect(e) then
+
 		Duel.SendtoGrave(
 			c,
 			REASON_EFFECT
 		)
+
 	end
 end
 
@@ -464,6 +550,7 @@ end
 ---------------------------------------------------
 
 function s.negcon(e,tp,eg,ep,ev,re,r,rp)
+
 	return rp~=tp
 		and Duel.IsChainDisablable(ev)
 end
@@ -498,21 +585,24 @@ end
 function s.negop(e,tp,eg,ep,ev,re,r,rp)
 
 	if Duel.NegateActivation(ev) then
+
 		Duel.Destroy(
 			eg,
 			REASON_EFFECT
 		)
+
 	end
 end
 
 
 ---------------------------------------------------
 -- ATK gain filter
--- Only Masked HERO
+-- ONLY Masked HERO
 ---------------------------------------------------
 
 function s.atkfilter(c)
-	return c:IsSetCard(MASKED_HERO)
+
+	return c:IsSetCard(0xA008)
 		and c:IsAbleToRemove()
 end
 
@@ -524,6 +614,7 @@ end
 function s.atktg(e,tp,eg,ep,ev,re,r,rp,chk)
 
 	if chk==0 then
+
 		return Duel.IsExistingMatchingCard(
 			s.atkfilter,
 			tp,
@@ -532,6 +623,7 @@ function s.atktg(e,tp,eg,ep,ev,re,r,rp,chk)
 			1,
 			nil
 		)
+
 	end
 
 	return true
@@ -558,8 +650,9 @@ function s.atkop(e,tp,eg,ep,ev,re,r,rp)
 		return
 	end
 
+
 	---------------------------------------------------
-	-- Select any number
+	-- Select any number of Masked HERO
 	---------------------------------------------------
 
 	Duel.Hint(
@@ -575,6 +668,7 @@ function s.atkop(e,tp,eg,ep,ev,re,r,rp)
 		nil
 	)
 
+
 	---------------------------------------------------
 	-- Banish
 	---------------------------------------------------
@@ -585,20 +679,24 @@ function s.atkop(e,tp,eg,ep,ev,re,r,rp)
 		REASON_EFFECT
 	)
 
+
 	---------------------------------------------------
-	-- Gain ATK
+	-- Gain 300 ATK for each
 	---------------------------------------------------
 
 	if ct>0 then
 
 		local e1=Effect.CreateEffect(c)
+
 		e1:SetType(EFFECT_TYPE_SINGLE)
 		e1:SetCode(EFFECT_UPDATE_ATTACK)
 		e1:SetValue(ct*300)
+
 		e1:SetReset(
 			RESET_EVENT+RESETS_STANDARD_DISABLE
 		)
 
 		c:RegisterEffect(e1)
+
 	end
 end
