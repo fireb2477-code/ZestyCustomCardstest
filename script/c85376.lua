@@ -1,196 +1,604 @@
 --Masked HERO Tri-breaker
 local s,id=GetID()
+
 function s.initial_effect(c)
+	---------------------------------------------------
+	-- Fusion Summon
+	-- 3 "Masked HERO" monsters with different Attributes
+	---------------------------------------------------
 	c:EnableReviveLimit()
-	--Fusion Material (for standard Fusion Summon, e.g. via Polymerization/Super Polymerization)
+
+	Fusion.AddProcMix(c,true,true,
+		s.matfilter,
+		s.matfilter,
+		s.matfilter
+	)
+
+	---------------------------------------------------
+	-- Alternative Special Summon
+	-- Banish 3 "Masked HERO" monsters with different
+	-- Attributes from your GY and/or Extra Deck
+	---------------------------------------------------
 	local e0=Effect.CreateEffect(c)
-	e0:SetType(EFFECT_TYPE_SINGLE)
-	e0:SetProperty(EFFECT_FLAG_CANNOT_DISABLE)
-	e0:SetCode(EFFECT_FUSION_MATERIAL)
-	e0:SetValue(s.matfilter)
+	e0:SetType(EFFECT_TYPE_FIELD)
+	e0:SetCode(EFFECT_SPSUMMON_PROC)
+	e0:SetProperty(EFFECT_FLAG_UNCOPYABLE)
+	e0:SetRange(LOCATION_EXTRA)
+	e0:SetCondition(s.spcon)
+	e0:SetTarget(s.sptg)
+	e0:SetOperation(s.spop)
 	c:RegisterEffect(e0)
-	--Enforce "different Attributes" on whatever materials actually end up being used
-	--(covers normal Fusion Summon via Polymerization etc.; the alt-summon below already
-	--enforces this itself when selecting its own materials)
-	local e0c=Effect.CreateEffect(c)
-	e0c:SetType(EFFECT_TYPE_SINGLE)
-	e0c:SetProperty(EFFECT_FLAG_CANNOT_DISABLE+EFFECT_FLAG_UNCOPYABLE)
-	e0c:SetCode(EFFECT_SPSUMMON_CONDITION)
-	e0c:SetValue(s.spsumcon)
-	c:RegisterEffect(e0c)
-	--Alternative Special Summon: banish the above materials from GY and/or Extra Deck
+
+	---------------------------------------------------
+	-- End Phase
+	---------------------------------------------------
 	local e1=Effect.CreateEffect(c)
-	e1:SetType(EFFECT_TYPE_FIELD)
-	e1:SetCode(EFFECT_SPSUMMON_PROC)
-	e1:SetProperty(EFFECT_FLAG_CANNOT_DISABLE)
-	e1:SetRange(LOCATION_EXTRA)
-	e1:SetTargetRange(LOCATION_MZONE,0)
-	e1:SetCondition(s.spcon)
-	e1:SetOperation(s.spop)
+	e1:SetCategory(CATEGORY_REMOVE+CATEGORY_TOGRAVE)
+	e1:SetType(EFFECT_TYPE_FIELD+EFFECT_TYPE_TRIGGER_F)
+	e1:SetCode(EVENT_PHASE+PHASE_END)
+	e1:SetRange(LOCATION_MZONE)
+	e1:SetCondition(s.epcon)
+	e1:SetTarget(s.eptg)
+	e1:SetOperation(s.epop)
 	c:RegisterEffect(e1)
-	local e1c=Effect.CreateEffect(c)
-	e1c:SetType(EFFECT_TYPE_FIELD)
-	e1c:SetCode(EFFECT_SPSUMMON_COST)
-	e1c:SetRange(LOCATION_EXTRA)
-	e1c:SetTargetRange(LOCATION_MZONE,0)
-	e1c:SetCost(s.spcost)
-	c:RegisterEffect(e1c)
-	--(2) End Phase: if Special Summoned by the above method, banish 1 "HERO" from GY or send this card to GY
+
+	---------------------------------------------------
+	-- Quick Effect
+	-- Negate opponent's activation, then destroy it
+	---------------------------------------------------
 	local e2=Effect.CreateEffect(c)
-	e2:SetType(EFFECT_TYPE_FIELD)
-	e2:SetCode(EVENT_PHASE+PHASE_END)
+	e2:SetCategory(CATEGORY_NEGATE+CATEGORY_DESTROY)
+	e2:SetType(EFFECT_TYPE_QUICK_O)
+	e2:SetCode(EVENT_CHAINING)
 	e2:SetRange(LOCATION_MZONE)
-	e2:SetCondition(s.endcon)
-	e2:SetOperation(s.endop)
+	e2:SetCountLimit(1,id)
+	e2:SetCondition(s.negcon)
+	e2:SetTarget(s.negtg)
+	e2:SetOperation(s.negop)
 	c:RegisterEffect(e2)
-	--(3) Quick Effect: negate opponent's activation and destroy that card
+
+	---------------------------------------------------
+	-- Banish any number of "Masked HERO" monsters
+	-- Gain 300 ATK for each
+	---------------------------------------------------
 	local e3=Effect.CreateEffect(c)
-	e3:SetCategory(CATEGORY_NEGATE+CATEGORY_DESTROY)
-	e3:SetType(EFFECT_TYPE_QUICK_O)
-	e3:SetCode(EVENT_CHAINING)
+	e3:SetCategory(CATEGORY_REMOVE+CATEGORY_ATKCHANGE)
+	e3:SetType(EFFECT_TYPE_IGNITION)
 	e3:SetRange(LOCATION_MZONE)
-	e3:SetCondition(s.negcon)
-	e3:SetTarget(s.negtg)
-	e3:SetOperation(s.negop)
+	e3:SetCountLimit(1,id+100)
+	e3:SetTarget(s.atktg)
+	e3:SetOperation(s.atkop)
 	c:RegisterEffect(e3)
-	--(4) Once per turn: banish any number of "Masked HERO" from GY; gain 300 ATK each
-	local e4=Effect.CreateEffect(c)
-	e4:SetCategory(CATEGORY_ATKCHANGE)
-	e4:SetType(EFFECT_TYPE_IGNITION)
-	e4:SetRange(LOCATION_MZONE)
-	e4:SetCountLimit(1,id)
-	e4:SetCost(s.atkcost)
-	e4:SetTarget(s.atktg)
-	e4:SetOperation(s.atkop)
-	c:RegisterEffect(e4)
 end
 
---Shared filters
-function s.matfilter(c)
-	return c:IsSetCard(0xa008) and not c:IsCode(id)
-end
-function s.herofilter(c)
-	return c:IsSetCard(0x8)
-end
---checks the materials actually used for a genuine Fusion Summon (Polymerization etc.)
---if this card was summoned by our own alt-procedure below instead, no materials are
---registered through the Fusion system, so this simply passes
-function s.spsumcon(e,c)
-	if c==nil then return true end
-	local mg=c:GetMaterial()
-	if not mg or mg:GetCount()==0 then return true end
-	return Auxiliary.GetAttributeCount(mg)>=3
+
+---------------------------------------------------
+-- Archetype codes
+---------------------------------------------------
+
+local HERO=0x8
+local MASKED_HERO=0xA008
+
+
+---------------------------------------------------
+-- Fusion Material
+-- 3 Masked HERO monsters
+---------------------------------------------------
+
+function s.matfilter(c,fc,sumtype,tp)
+	return c:IsSetCard(MASKED_HERO)
+		and c:IsCanBeFusionMaterial(fc)
 end
 
---(1) Alternative Special Summon Procedure
-function s.matgfilter(c)
-	return c:IsSetCard(0xa008) and not c:IsCode(id) and c:IsAbleToRemoveAsCost()
+
+---------------------------------------------------
+-- Alternative Special Summon filter
+---------------------------------------------------
+
+function s.spfilter(c,sc)
+	return c~=sc
+		and c:IsSetCard(MASKED_HERO)
+		and c:IsAbleToRemove()
 end
-function s.checkatt(g)
-	if g:GetCount()<3 then return false end
-	local atts={}
-	local ct=0
-	local tc=g:GetFirst()
-	while tc do
-		local att=tc:GetAttribute()
-		if not atts[att] then
-			atts[att]=true
-			ct=ct+1
-		end
-		tc=g:GetNext()
+
+
+---------------------------------------------------
+-- Check whether 3 valid materials exist
+---------------------------------------------------
+
+function s.checkmaterials(tp,sc)
+	local g=Duel.GetMatchingGroup(
+		s.spfilter,
+		tp,
+		LOCATION_GRAVE+LOCATION_EXTRA,
+		0,
+		sc
+	)
+
+	if #g<3 then
+		return false
 	end
-	return ct>=3
+
+	---------------------------------------------------
+	-- Check 3 different Attributes
+	---------------------------------------------------
+
+	for tc1 in aux.Next(g) do
+
+		for tc2 in aux.Next(g) do
+
+			if tc2~=tc1
+				and tc1:GetAttribute()~=tc2:GetAttribute()
+			then
+
+				for tc3 in aux.Next(g) do
+
+					if tc3~=tc1
+						and tc3~=tc2
+						and tc3:GetAttribute()~=tc1:GetAttribute()
+						and tc3:GetAttribute()~=tc2:GetAttribute()
+					then
+						return true
+					end
+
+				end
+			end
+
+		end
+
+	end
+
+	return false
 end
+
+
+---------------------------------------------------
+-- Alternative Special Summon condition
+--
+-- IMPORTANT:
+-- Check materials HERE, not only in sptg().
+-- This prevents EDOPro from displaying the card
+-- as summonable when there are not enough materials.
+---------------------------------------------------
+
 function s.spcon(e,c)
 	if c==nil then
-		local g=Duel.GetMatchingGroup(s.matgfilter,e:GetHandlerPlayer(),LOCATION_GRAVE+LOCATION_EXTRA,0,nil)
-		return s.checkatt(g)
-	else return true end
-end
-function s.spcost(e,tp,eg,ep,ev,re,r,rp,chk)
-	if chk==0 then
-		local g=Duel.GetMatchingGroup(s.matgfilter,tp,LOCATION_GRAVE+LOCATION_EXTRA,0,nil)
-		return s.checkatt(g)
+		return true
 	end
-	Duel.Hint(HINT_SELECTMSG,tp,HINTMSG_REMOVE)
-	local g1=Duel.GetMatchingGroup(s.matgfilter,tp,LOCATION_GRAVE+LOCATION_EXTRA,0,nil)
-	local tc1=g1:Select(tp,1,1,nil):GetFirst()
-	Duel.Remove(tc1,POS_FACEUP,REASON_COST)
-	local att1=tc1:GetAttribute()
-	local g2=Duel.GetMatchingGroup(s.matgfilter,tp,LOCATION_GRAVE+LOCATION_EXTRA,0,nil)
-	g2=g2:Filter(function(c) return c:GetAttribute()~=att1 end,nil)
-	local tc2=g2:Select(tp,1,1,nil):GetFirst()
-	Duel.Remove(tc2,POS_FACEUP,REASON_COST)
-	local att2=tc2:GetAttribute()
-	local g3=Duel.GetMatchingGroup(s.matgfilter,tp,LOCATION_GRAVE+LOCATION_EXTRA,0,nil)
-	g3=g3:Filter(function(c) return c:GetAttribute()~=att1 and c:GetAttribute()~=att2 end,nil)
-	local tc3=g3:Select(tp,1,1,nil):GetFirst()
-	Duel.Remove(tc3,POS_FACEUP,REASON_COST)
+
+	if not c:IsLocation(LOCATION_EXTRA) then
+		return false
+	end
+
+	local tp=e:GetHandlerPlayer()
+
+	---------------------------------------------------
+	-- Must have a free Extra Monster Zone / valid zone
+	---------------------------------------------------
+
+	if Duel.GetLocationCountFromEx(
+		tp,
+		tp,
+		c
+	)<=0 then
+		return false
+	end
+
+	---------------------------------------------------
+	-- MUST actually have 3 materials
+	---------------------------------------------------
+
+	return s.checkmaterials(tp,c)
 end
+
+
+---------------------------------------------------
+-- Special Summon target
+---------------------------------------------------
+
+function s.sptg(e,tp,eg,ep,ev,re,r,rp,chk)
+	if chk==0 then
+		return s.checkmaterials(tp,e:GetHandler())
+	end
+
+	return true
+end
+
+
+---------------------------------------------------
+-- Alternative Special Summon operation
+---------------------------------------------------
+
 function s.spop(e,tp,eg,ep,ev,re,r,rp)
 	local c=e:GetHandler()
-	c:RegisterFlagEffect(id,RESET_EVENT+RESETS_STANDARD,0,1)
-end
 
---(2) End Phase clause
-function s.endcon(e,tp,eg,ep,ev,re,r,rp)
-	local c=e:GetHandler()
-	return c:GetFlagEffect(id)>0
-end
-function s.endop(e,tp,eg,ep,ev,re,r,rp)
-	local c=e:GetHandler()
-	if not c:IsRelateToEffect(e) then return end
-	if Duel.IsExistingMatchingCard(s.herofilter,tp,LOCATION_GRAVE,0,1,nil)
-		and Duel.SelectYesNo(tp,0) then
-		local g=Duel.SelectMatchingCard(tp,s.herofilter,tp,LOCATION_GRAVE,0,1,1,nil)
-		Duel.Remove(g,POS_FACEUP,REASON_EFFECT)
-	else
-		Duel.SendtoGrave(c,REASON_EFFECT)
+	---------------------------------------------------
+	-- Get all possible materials
+	---------------------------------------------------
+
+	local g=Duel.GetMatchingGroup(
+		s.spfilter,
+		tp,
+		LOCATION_GRAVE+LOCATION_EXTRA,
+		0,
+		c
+	)
+
+	if #g<3 then
+		return
 	end
+
+	local sg=Group.CreateGroup()
+
+
+	---------------------------------------------------
+	-- Select first material
+	---------------------------------------------------
+
+	Duel.Hint(
+		HINT_SELECTMSG,
+		tp,
+		HINTMSG_REMOVE
+	)
+
+	local tc1=g:Select(tp,1,1,nil):GetFirst()
+
+	if not tc1 then
+		return
+	end
+
+	sg:AddCard(tc1)
+	g:RemoveCard(tc1)
+
+
+	---------------------------------------------------
+	-- Select second material
+	---------------------------------------------------
+
+	local g2=g:Filter(
+		function(mc,attr)
+			return mc:GetAttribute()~=attr
+		end,
+		nil,
+		tc1:GetAttribute()
+	)
+
+	if #g2==0 then
+		return
+	end
+
+	Duel.Hint(
+		HINT_SELECTMSG,
+		tp,
+		HINTMSG_REMOVE
+	)
+
+	local tc2=g2:Select(tp,1,1,nil):GetFirst()
+
+	if not tc2 then
+		return
+	end
+
+	sg:AddCard(tc2)
+	g:RemoveCard(tc2)
+
+
+	---------------------------------------------------
+	-- Select third material
+	---------------------------------------------------
+
+	local g3=g:Filter(
+		function(mc,attr1,attr2)
+			local attr=mc:GetAttribute()
+
+			return attr~=attr1
+				and attr~=attr2
+		end,
+		nil,
+		tc1:GetAttribute(),
+		tc2:GetAttribute()
+	)
+
+	if #g3==0 then
+		return
+	end
+
+	Duel.Hint(
+		HINT_SELECTMSG,
+		tp,
+		HINTMSG_REMOVE
+	)
+
+	local tc3=g3:Select(tp,1,1,nil):GetFirst()
+
+	if not tc3 then
+		return
+	end
+
+	sg:AddCard(tc3)
+
+
+	---------------------------------------------------
+	-- Banish all 3 materials
+	---------------------------------------------------
+
+	if Duel.Remove(
+		sg,
+		POS_FACEUP,
+		REASON_MATERIAL+REASON_FUSION+REASON_COST
+	)~=3 then
+		return
+	end
+
+
+	---------------------------------------------------
+	-- Mark that this card was Special Summoned
+	-- by its own procedure
+	---------------------------------------------------
+
+	c:RegisterFlagEffect(
+		id,
+		RESET_EVENT+RESETS_STANDARD,
+		0,
+		1
+	)
 end
 
---(3) Negate opponent's activation
-function s.negcon(e,tp,eg,ep,ev,re,r,rp)
-	return re:IsActiveType(TYPE_MONSTER+TYPE_SPELL+TYPE_TRAP) and rp==1-tp
+
+---------------------------------------------------
+-- End Phase condition
+---------------------------------------------------
+
+function s.epcon(e,tp,eg,ep,ev,re,r,rp)
+	return e:GetHandler():GetFlagEffect(id)>0
 end
-function s.negtg(e,tp,eg,ep,ev,re,r,rp,chk)
-	if chk==0 then return Duel.IsChainDisablable(ev) end
-	Duel.SetOperationInfo(0,CATEGORY_NEGATE+CATEGORY_DESTROY,re:GetHandler(),1,0,0)
+
+
+---------------------------------------------------
+-- HERO filter
+--
+-- IMPORTANT:
+-- This is HERO in general, not Masked HERO.
+---------------------------------------------------
+
+function s.herofilter(c)
+	return c:IsSetCard(HERO)
+		and c:IsAbleToRemove()
 end
-function s.negop(e,tp,eg,ep,ev,re,r,rp)
-	if Duel.NegateActivation(ev) then
-		local rc=re:GetHandler()
-		if re:IsHasType(EFFECT_TYPE_ACTIVATE) and rc:IsRelateToEffect(re) then
-			Duel.Destroy(rc,REASON_EFFECT)
+
+
+---------------------------------------------------
+-- End Phase target
+---------------------------------------------------
+
+function s.eptg(e,tp,eg,ep,ev,re,r,rp,chk)
+
+	if chk==0 then
+		return Duel.IsExistingMatchingCard(
+			s.herofilter,
+			tp,
+			LOCATION_GRAVE,
+			0,
+			1,
+			nil
+		)
+		or e:GetHandler():IsAbleToGrave()
+	end
+
+	Duel.SetOperationInfo(
+		0,
+		CATEGORY_REMOVE,
+		nil,
+		1,
+		tp,
+		LOCATION_GRAVE
+	)
+
+	Duel.SetOperationInfo(
+		0,
+		CATEGORY_TOGRAVE,
+		e:GetHandler(),
+		1,
+		tp,
+		LOCATION_MZONE
+	)
+end
+
+
+---------------------------------------------------
+-- End Phase operation
+---------------------------------------------------
+
+function s.epop(e,tp,eg,ep,ev,re,r,rp)
+	local c=e:GetHandler()
+
+	local g=Duel.GetMatchingGroup(
+		s.herofilter,
+		tp,
+		LOCATION_GRAVE,
+		0,
+		nil
+	)
+
+	---------------------------------------------------
+	-- If there is a HERO in GY:
+	-- Banish 1 HERO
+	---------------------------------------------------
+
+	if #g>0 then
+
+		Duel.Hint(
+			HINT_SELECTMSG,
+			tp,
+			HINTMSG_REMOVE
+		)
+
+		local tc=g:Select(tp,1,1,nil):GetFirst()
+
+		if tc then
+			Duel.Remove(
+				tc,
+				POS_FACEUP,
+				REASON_EFFECT
+			)
+
+			return
 		end
 	end
+
+	---------------------------------------------------
+	-- Otherwise send this card to GY
+	---------------------------------------------------
+
+	if c:IsRelateToEffect(e) then
+		Duel.SendtoGrave(
+			c,
+			REASON_EFFECT
+		)
+	end
 end
 
---(4) Banish "Masked HERO" from GY for ATK gain
-function s.costfilter(c)
-	return c:IsSetCard(0xa008) and c:IsAbleToRemoveAsCost()
+
+---------------------------------------------------
+-- Negate opponent's card/effect
+---------------------------------------------------
+
+function s.negcon(e,tp,eg,ep,ev,re,r,rp)
+	return rp~=tp
+		and Duel.IsChainDisablable(ev)
 end
-function s.atkcost(e,tp,eg,ep,ev,re,r,rp,chk)
-	if chk==0 then return Duel.IsExistingMatchingCard(s.costfilter,tp,LOCATION_GRAVE,0,1,nil) end
-	local g=Duel.SelectMatchingCard(tp,s.costfilter,tp,LOCATION_GRAVE,0,99,0,nil)
-	local ct=g:GetCount()
-	if ct>0 then
-		Duel.Remove(g,POS_FACEUP,REASON_COST)
+
+
+function s.negtg(e,tp,eg,ep,ev,re,r,rp,chk)
+
+	if chk==0 then
+		return Duel.IsChainDisablable(ev)
 	end
-	e:SetLabel(ct)
+
+	Duel.SetOperationInfo(
+		0,
+		CATEGORY_NEGATE,
+		eg,
+		1,
+		0,
+		0
+	)
+
+	Duel.SetOperationInfo(
+		0,
+		CATEGORY_DESTROY,
+		eg,
+		1,
+		0,
+		0
+	)
 end
+
+
+function s.negop(e,tp,eg,ep,ev,re,r,rp)
+
+	if Duel.NegateActivation(ev) then
+		Duel.Destroy(
+			eg,
+			REASON_EFFECT
+		)
+	end
+end
+
+
+---------------------------------------------------
+-- ATK gain filter
+-- Only Masked HERO
+---------------------------------------------------
+
+function s.atkfilter(c)
+	return c:IsSetCard(MASKED_HERO)
+		and c:IsAbleToRemove()
+end
+
+
+---------------------------------------------------
+-- ATK gain target
+---------------------------------------------------
+
 function s.atktg(e,tp,eg,ep,ev,re,r,rp,chk)
-	if chk==0 then return true end
-	Duel.SetOperationInfo(0,CATEGORY_ATKCHANGE,e:GetHandler(),1,0,0)
+
+	if chk==0 then
+		return Duel.IsExistingMatchingCard(
+			s.atkfilter,
+			tp,
+			LOCATION_GRAVE,
+			0,
+			1,
+			nil
+		)
+	end
+
+	return true
 end
+
+
+---------------------------------------------------
+-- ATK gain operation
+---------------------------------------------------
+
 function s.atkop(e,tp,eg,ep,ev,re,r,rp)
+
 	local c=e:GetHandler()
-	local ct=e:GetLabel()
-	if ct<=0 or not c:IsRelateToEffect(e) then return end
-	local te=Effect.CreateEffect(c)
-	te:SetType(EFFECT_TYPE_SINGLE)
-	te:SetCode(EFFECT_UPDATE_ATTACK)
-	te:SetValue(300*ct)
-	te:SetReset(RESET_EVENT+RESETS_STANDARD)
-	c:RegisterEffect(te)
+
+	local g=Duel.GetMatchingGroup(
+		s.atkfilter,
+		tp,
+		LOCATION_GRAVE,
+		0,
+		nil
+	)
+
+	if #g==0 then
+		return
+	end
+
+	---------------------------------------------------
+	-- Select any number
+	---------------------------------------------------
+
+	Duel.Hint(
+		HINT_SELECTMSG,
+		tp,
+		HINTMSG_REMOVE
+	)
+
+	local sg=g:Select(
+		tp,
+		1,
+		# g,
+		nil
+	)
+
+	---------------------------------------------------
+	-- Banish
+	---------------------------------------------------
+
+	local ct=Duel.Remove(
+		sg,
+		POS_FACEUP,
+		REASON_EFFECT
+	)
+
+	---------------------------------------------------
+	-- Gain ATK
+	---------------------------------------------------
+
+	if ct>0 then
+
+		local e1=Effect.CreateEffect(c)
+		e1:SetType(EFFECT_TYPE_SINGLE)
+		e1:SetCode(EFFECT_UPDATE_ATTACK)
+		e1:SetValue(ct*300)
+		e1:SetReset(
+			RESET_EVENT+RESETS_STANDARD_DISABLE
+		)
+
+		c:RegisterEffect(e1)
+	end
 end
