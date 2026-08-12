@@ -3,10 +3,10 @@ local s,id=GetID()
 function s.initial_effect(c)
     c:EnableReviveLimit()
     
-    -- Nguyên liệu dung hợp: 1 FIRE "Witchcrafter" monster + 1 Spellcaster monster
+    -- Fusion Material: 1 FIRE "Witchcrafter" monster + 1 Spellcaster monster
     Fusion.AddProcMix(c,true,true,s.mfilter1,s.mfilter2)
     
-    -- 1. Khi Special Summoned: Triệu hồi hoặc lấy 1 Witchcrafter từ Deck, sau đó có thể Set 1 Witchcrafter Spell
+    -- 1. On Special Summoned
     local e1=Effect.CreateEffect(c)
     e1:SetDescription(aux.Stringid(id,0))
     e1:SetCategory(CATEGORY_SPECIAL_SUMMON+CATEGORY_TOHAND+CATEGORY_SEARCH)
@@ -17,7 +17,7 @@ function s.initial_effect(c)
     e1:SetOperation(s.spop1)
     c:RegisterEffect(e1)
     
-    -- 2. Fusion Summon 1 Witchcrafter từ Extra Deck dùng nguyên liệu từ Deck + trao hiệu ứng
+    -- 2. Fusion Summon from Deck
     local e2=Effect.CreateEffect(c)
     e2:SetDescription(aux.Stringid(id,1))
     e2:SetCategory(CATEGORY_SPECIAL_SUMMON+CATEGORY_FUSION_SUMMON+CATEGORY_TOGRAVE)
@@ -31,7 +31,7 @@ end
 
 s.listed_series={0x128}
 
--- Filter Fusion Material chuẩn cho c
+-- Fusion Material Filters
 function s.mfilter1(c,fc,sumtype,tp)
     return c:IsAttribute(ATTRIBUTE_FIRE,fc,sumtype,tp) and c:IsSetCard(0x128,fc,sumtype,tp)
 end
@@ -39,7 +39,7 @@ function s.mfilter2(c,fc,sumtype,tp)
     return c:IsRace(RACE_SPELLCASTER,fc,sumtype,tp)
 end
 
--- Filter lọc nguyên liệu Fusion từ Deck (Chỉ lấy Monster)
+-- Filter Deck Fusion Material (Monster only)
 function s.matfilter(c)
     return c:IsMonster() and c:IsCanBeFusionMaterial() and c:IsAbleToGrave()
 end
@@ -68,7 +68,7 @@ function s.spop1(e,tp,eg,ep,ev,re,r,rp)
         local b2=ft>0 and tc:IsCanBeSpecialSummoned(e,0,tp,false,false)
         local op=0
         if b1 and b2 then
-            op=Duel.SelectOption(tp,1190,1152)
+            op=Duel.SelectOption(tp,aux.Stringid(id,3),aux.Stringid(id,4))
         elseif b1 then
             op=0
         else
@@ -89,7 +89,7 @@ function s.spop1(e,tp,eg,ep,ev,re,r,rp)
         
         if success and Duel.GetLocationCount(tp,LOCATION_SZONE)>0
             and Duel.IsExistingMatchingCard(s.setfilter,tp,LOCATION_DECK+LOCATION_GRAVE,0,1,nil)
-            and Duel.SelectYesNo(tp,aux.Stringid(id,0)) then
+            and Duel.SelectYesNo(tp,aux.Stringid(id,5)) then
             
             Duel.BreakEffect()
             Duel.Hint(HINT_SELECTMSG,tp,HINTMSG_SET)
@@ -101,7 +101,7 @@ function s.spop1(e,tp,eg,ep,ev,re,r,rp)
     end
 end
 
--- E2 Logic (Fusion từ Deck)
+-- E2 Logic
 function s.fusfilter(c,e,tp,mg)
     return c:IsType(TYPE_FUSION) and c:IsSetCard(0x128)
         and c:IsCanBeSpecialSummoned(e,SUMMON_TYPE_FUSION,tp,false,false)
@@ -129,7 +129,7 @@ function s.fusop(e,tp,eg,ep,ev,re,r,rp)
         if Duel.SpecialSummon(tc,SUMMON_TYPE_FUSION,tp,tp,false,false,POS_FACEUP)>0 then
             tc:CompleteProcedure()
             
-            -- Trao hiệu ứng mới cho quái thú Fusion được triệu hồi
+            -- Granted Effect
             local e1=Effect.CreateEffect(e:GetHandler())
             e1:SetDescription(aux.Stringid(id,2))
             e1:SetCategory(CATEGORY_SPECIAL_SUMMON)
@@ -153,7 +153,7 @@ function s.fusop(e,tp,eg,ep,ev,re,r,rp)
     end
 end
 
--- Hiệu ứng được trao (Target tối đa 2 Spellcaster từ GY để Special Summon)
+-- Granted Effect Logic
 function s.spfilter_g(c,e,tp)
     return c:IsRace(RACE_SPELLCASTER) and c:IsCanBeSpecialSummoned(e,0,tp,false,false)
 end
