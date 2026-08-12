@@ -31,12 +31,17 @@ end
 
 s.listed_series={0x128}
 
--- Filter Fusion Material
+-- Filter Fusion Material chuẩn cho c
 function s.mfilter1(c,fc,sumtype,tp)
     return c:IsAttribute(ATTRIBUTE_FIRE,fc,sumtype,tp) and c:IsSetCard(0x128,fc,sumtype,tp)
 end
 function s.mfilter2(c,fc,sumtype,tp)
     return c:IsRace(RACE_SPELLCASTER,fc,sumtype,tp)
+end
+
+-- Filter lọc nguyên liệu Fusion từ Deck (Chỉ lấy Monster)
+function s.matfilter(c)
+    return c:IsMonster() and c:IsCanBeFusionMaterial() and c:IsAbleToGrave()
 end
 
 -- E1 Logic
@@ -63,7 +68,7 @@ function s.spop1(e,tp,eg,ep,ev,re,r,rp)
         local b2=ft>0 and tc:IsCanBeSpecialSummoned(e,0,tp,false,false)
         local op=0
         if b1 and b2 then
-            op=Duel.SelectOption(tp,1190,1152) -- 1190: Add to hand, 1152: Special Summon
+            op=Duel.SelectOption(tp,1190,1152)
         elseif b1 then
             op=0
         else
@@ -82,7 +87,6 @@ function s.spop1(e,tp,eg,ep,ev,re,r,rp)
             end
         end
         
-        -- Set 1 Witchcrafter Spell từ Deck hoặc GY
         if success and Duel.GetLocationCount(tp,LOCATION_SZONE)>0
             and Duel.IsExistingMatchingCard(s.setfilter,tp,LOCATION_DECK+LOCATION_GRAVE,0,1,nil)
             and Duel.SelectYesNo(tp,aux.Stringid(id,0)) then
@@ -97,7 +101,7 @@ function s.spop1(e,tp,eg,ep,ev,re,r,rp)
     end
 end
 
--- E2 Logic (Fusion từ Deck & Ban trao hiệu ứng)
+-- E2 Logic (Fusion từ Deck)
 function s.fusfilter(c,e,tp,mg)
     return c:IsType(TYPE_FUSION) and c:IsSetCard(0x128)
         and c:IsCanBeSpecialSummoned(e,SUMMON_TYPE_FUSION,tp,false,false)
@@ -105,7 +109,7 @@ function s.fusfilter(c,e,tp,mg)
 end
 function s.fustg(e,tp,eg,ep,ev,re,r,rp,chk)
     if chk==0 then
-        local mg=Duel.GetMatchingGroup(Card.IsAbleToGrave,tp,LOCATION_DECK,0,nil)
+        local mg=Duel.GetMatchingGroup(s.matfilter,tp,LOCATION_DECK,0,nil)
         return Duel.GetLocationCount(tp,LOCATION_MZONE)>0
             and Duel.IsExistingMatchingCard(s.fusfilter,tp,LOCATION_EXTRA,0,1,nil,e,tp,mg)
     end
@@ -113,7 +117,7 @@ function s.fustg(e,tp,eg,ep,ev,re,r,rp,chk)
     Duel.SetOperationInfo(0,CATEGORY_TOGRAVE,nil,1,tp,LOCATION_DECK)
 end
 function s.fusop(e,tp,eg,ep,ev,re,r,rp)
-    local mg=Duel.GetMatchingGroup(Card.IsAbleToGrave,tp,LOCATION_DECK,0,nil)
+    local mg=Duel.GetMatchingGroup(s.matfilter,tp,LOCATION_DECK,0,nil)
     Duel.Hint(HINT_SELECTMSG,tp,HINTMSG_SPSUMMON)
     local g=Duel.SelectMatchingCard(tp,s.fusfilter,tp,LOCATION_EXTRA,0,1,1,nil,e,tp,mg)
     local tc=g:GetFirst()
@@ -125,7 +129,7 @@ function s.fusop(e,tp,eg,ep,ev,re,r,rp)
         if Duel.SpecialSummon(tc,SUMMON_TYPE_FUSION,tp,tp,false,false,POS_FACEUP)>0 then
             tc:CompleteProcedure()
             
-            -- Trao hiệu ứng mới cho quái thú vừa Fusion Summon
+            -- Trao hiệu ứng mới cho quái thú Fusion được triệu hồi
             local e1=Effect.CreateEffect(e:GetHandler())
             e1:SetDescription(aux.Stringid(id,2))
             e1:SetCategory(CATEGORY_SPECIAL_SUMMON)
@@ -149,7 +153,7 @@ function s.fusop(e,tp,eg,ep,ev,re,r,rp)
     end
 end
 
--- Hiệu ứng được trao (Granted Effect: Target tới 2 Spellcaster từ GY để Special Summon)
+-- Hiệu ứng được trao (Target tối đa 2 Spellcaster từ GY để Special Summon)
 function s.spfilter_g(c,e,tp)
     return c:IsRace(RACE_SPELLCASTER) and c:IsCanBeSpecialSummoned(e,0,tp,false,false)
 end
