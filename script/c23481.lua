@@ -38,25 +38,25 @@ function s.initial_effect(c)
     c:RegisterEffect(e3)
 end
 
--- Khai báo liên kết với Kashtira (0x189) để engine hiển thị gợi ý bài tốt hơn
-s.listed_series={0x189}
+s.listed_series={0x18a}
 
 -- E1 Logic: SpSummon & Search
 function s.cfilter(c)
-    return c:IsFaceup() and c:IsSetCard(0x189)
+    return c:IsFaceup() and c:IsSetCard(0x18a)
 end
 function s.spcon1(e,tp,eg,ep,ev,re,r,rp)
     return Duel.GetFieldGroupCount(tp,LOCATION_MZONE,0)==0
         or Duel.IsExistingMatchingCard(s.cfilter,tp,LOCATION_MZONE,0,1,nil)
 end
 function s.thfilter(c)
-    return c:IsSetCard(0x189) and c:IsAbleToHand()
+    return c:IsSetCard(0x18a) and c:IsAbleToHand()
 end
 function s.sptg1(e,tp,eg,ep,ev,re,r,rp,chk)
+    local c=e:GetHandler()
     if chk==0 then return Duel.GetLocationCount(tp,LOCATION_MZONE)>0
-        and e:GetHandler():IsCanBeSpecialSummoned(e,0,tp,false,false)
+        and c:IsCanBeSpecialSummoned(e,0,tp,false,false)
         and Duel.IsExistingMatchingCard(s.thfilter,tp,LOCATION_DECK,0,1,nil) end
-    Duel.SetOperationInfo(0,CATEGORY_SPECIAL_SUMMON,e:GetHandler(),1,0,0)
+    Duel.SetOperationInfo(0,CATEGORY_SPECIAL_SUMMON,c,1,0,0)
     Duel.SetOperationInfo(0,CATEGORY_TOHAND,nil,1,tp,LOCATION_DECK)
 end
 function s.spop1(e,tp,eg,ep,ev,re,r,rp)
@@ -77,12 +77,12 @@ function s.spcost2(e,tp,eg,ep,ev,re,r,rp,chk)
     Duel.Release(e:GetHandler(),REASON_COST)
 end
 function s.spfilter2(c,e,tp)
-    return c:IsSetCard(0x189) and c:IsCanBeSpecialSummoned(e,0,tp,false,false)
+    return c:IsSetCard(0x18a) and c:IsMonster() and c:IsCanBeSpecialSummoned(e,0,tp,false,false)
 end
 function s.sptg2(e,tp,eg,ep,ev,re,r,rp,chk)
+    local c=e:GetHandler()
     if chk==0 then
-        -- Kể cả khi full bàn, hy sinh lá này xong vẫn sẽ trống 1 ô để Summon
-        return Duel.GetMZoneCount(tp,e:GetHandler())>0
+        return Duel.GetMZoneCount(tp,c)>0
             and Duel.IsExistingMatchingCard(s.spfilter2,tp,LOCATION_HAND+LOCATION_GRAVE,0,1,nil,e,tp)
     end
     Duel.SetOperationInfo(0,CATEGORY_SPECIAL_SUMMON,nil,1,tp,LOCATION_HAND+LOCATION_GRAVE)
@@ -99,11 +99,10 @@ function s.spop2(e,tp,eg,ep,ev,re,r,rp)
         e1:SetType(EFFECT_TYPE_FIELD+EFFECT_TYPE_CONTINUOUS)
         e1:SetCode(EVENT_CHAINING)
         e1:SetOperation(s.chainop)
-        -- Tồn tại đến hết lượt của đối thủ (RESET_OPPO_TURN, đếm 1 lần)
         e1:SetReset(RESET_PHASE+PHASE_END+RESET_OPPO_TURN,1)
         Duel.RegisterEffect(e1,tp)
         
-        -- Dấu hiệu nhận biết cho người chơi (Client Hint)
+        -- Dấu hiệu nhận biết Client Hint
         local e2=Effect.CreateEffect(c)
         e2:SetType(EFFECT_TYPE_FIELD)
         e2:SetCode(EFFECT_FLAG_CLIENT_HINT)
@@ -116,13 +115,12 @@ function s.spop2(e,tp,eg,ep,ev,re,r,rp)
 end
 function s.chainop(e,tp,eg,ep,ev,re,r,rp)
     local rc=re:GetHandler()
-    -- Nếu người kích hoạt là mình (tp), bài kích hoạt thuộc tính Kashtira, và là Monster Effect
-    if ep==tp and rc:IsSetCard(0x189) and re:IsActiveType(TYPE_MONSTER) then
+    if ep==tp and rc:IsSetCard(0x18a) and re:IsActiveType(TYPE_MONSTER) then
         Duel.SetChainLimit(s.chainlm)
     end
 end
 function s.chainlm(e,rp,tp)
-    return tp==rp -- Chỉ người chơi hiện tại mới được chain tiếp, đối thủ thì không
+    return tp==rp
 end
 
 -- E3 Logic: Banish to Burn
